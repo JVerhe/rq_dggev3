@@ -53,10 +53,10 @@
       LOGICAL            LDUMMA( 1 )
 *     ..
 *     .. External Subroutines ..
-      EXTERNAL           dgeqrf, dggbak, dggbal,
+      EXTERNAL           dgerqf, dggbak, dggbal,
      $                   dgghd3, dlaqz0, dlacpy,
-     $                   dlascl, dlaset, dorgqr,
-     $                   dormqr, dtgevc, xerbla
+     $                   dlascl, dlaset, dorgrq,
+     $                   dormrq, dtgevc, xerbla
 *     ..
 *     .. External Functions ..
       LOGICAL            LSAME
@@ -119,13 +119,13 @@
 *     Compute workspace
 *
       IF( info.EQ.0 ) THEN
-         CALL dgeqrf( n, n, b, ldb, work, work, -1, ierr )
+         CALL dgerqf( n, n, b, ldb, work, work, -1, ierr )
          lwkopt = max( lwkmin, 3*n+int( work( 1 ) ) )
-         CALL dormqr( 'L', 'T', n, n, n, b, ldb, work, a, lda,
+         CALL dormrq( 'R', 'T', n, n, n, b, ldb, work, a, lda,
      $                work, -1, ierr )
          lwkopt = max( lwkopt, 3*n+int( work( 1 ) ) )
          IF( ilvl ) THEN
-            CALL dorgqr( n, n, n, vl, ldvl, work, work, -1, ierr )
+            CALL dorgrq( n, n, n, vl, ldvl, work, work, -1, ierr )
             lwkopt = max( lwkopt, 3*n+int( work( 1 ) ) )
          END IF
          IF( ilv ) THEN
@@ -208,7 +208,8 @@
       CALL dggbal( 'P', n, a, lda, b, ldb, ilo, ihi, work( ileft ),
      $             work( iright ), work( iwrk ), ierr )
 *
-*     Reduce B to triangular form (QR decomposition of B)
+*     Reduce B to triangular form (RQ decomposition of B)
+*     TODO:
 *
       irows = ihi + 1 - ilo
       IF( ilv ) THEN
@@ -218,16 +219,18 @@
       END IF
       itau = iwrk
       iwrk = itau + irows
-      CALL dgeqrf( irows, icols, b( ilo, ilo ), ldb, work( itau ),
+      CALL dgerqf( irows, icols, b( ilo, ilo ), ldb, work( itau ),
      $             work( iwrk ), lwork+1-iwrk, ierr )
 *
 *     Apply the orthogonal transformation to matrix A
+*     TODO:
 *
-      CALL dormqr( 'L', 'T', irows, icols, irows, b( ilo, ilo ), ldb,
+      CALL dormrq( 'L', 'T', irows, icols, irows, b( ilo, ilo ), ldb,
      $             work( itau ), a( ilo, ilo ), lda, work( iwrk ),
      $             lwork+1-iwrk, ierr )
 *
 *     Initialize VL
+*     TODO:
 *
       IF( ilvl ) THEN
          CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
@@ -235,7 +238,7 @@
             CALL dlacpy( 'L', irows-1, irows-1, b( ilo+1, ilo ), ldb,
      $                   vl( ilo+1, ilo ), ldvl )
          END IF
-         CALL dorgqr( irows, irows, irows, vl( ilo, ilo ), ldvl,
+         CALL dorgrq( irows, irows, irows, vl( ilo, ilo ), ldvl,
      $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr )
       END IF
 *
