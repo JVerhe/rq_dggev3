@@ -237,7 +237,7 @@
      $                   vl( ilo+1, ilo ), ldvl )
          END IF
          CALL dorgrq( irows, irows, irows, vl( ilo, ilo ), ldvl,
-     $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr )
+     $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr ) !! This line has to be changed
       END IF
 *
 *     Initialize VR

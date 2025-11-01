@@ -6,8 +6,8 @@
 ! lambda = (ALPHAR + i * ALPHAI) / BETA
 !
 program test_qz
+    use matrix_module
     implicit none
-
     ! External declaration for the LAPACK routine
     external DGGEV3
 
@@ -78,22 +78,18 @@ program test_qz
                  1.0, 1.0, 1.0], & ! Column 3
                  shape=[N, N])
 
+
     ! --- 2. Print Input Matrices ---
-    write(*, '("--- Input Matrix Pencil (A, B) ---")')
     write(*, '("Matrix A:")')
-    do i = 1, N
-        write(*, '(3F10.4)') A(i, 1:N)
-    end do
+    call print_matrix(A)
 
     write(*, '("Matrix B:")')
-    do i = 1, N
-        write(*, '(3F10.4)') B(i, 1:N)
-    end do
+    call print_matrix(B)
 
     ! --- 3. Call DGGEV3 (Generalized Eigenvalue Problem) ---
     ! JOBVL='N', JOBVR='N': Do not compute eigenvectors, only eigenvalues.
     call DGGEV3( &
-        'N', 'N', & ! JOBVL, JOBVR (No eigenvectors)
+        'V', 'V', & ! JOBVL, JOBVR (No eigenvectors)
         N, &        ! N (Matrix size)
         A, LDA, &   ! A, LDA
         B, LDB, &   ! B, LDB
@@ -106,7 +102,7 @@ program test_qz
 
     ! Make copy of input arguments: A B ALPHAR ALPHAI BETA VL VR WORK INFO
     call DGGEV3_RQ( &
-        'N', 'N', & ! JOBVL, JOBVR (No eigenvectors)
+        'V', 'V', & ! JOBVL, JOBVR (No eigenvectors)
         N, &        ! N (Matrix size)
         A2, LDA, &   ! A, LDA
         B2, LDB, &   ! B, LDB
@@ -123,7 +119,7 @@ program test_qz
 
     if (INFO == 0) then
         write(*, '("---------------------------------------------------------------")')
-        write(*, '("Index |   Alpha Real |   Alpha Imag |    Beta    |   Lambda (Approx.) ")')
+        write(*, '("Index |    ALPHAR    |    ALPHAI    |    BETA    |   LAMBDA ")')
         write(*, '("---------------------------------------------------------------")')
         
         do i = 1, N
@@ -144,52 +140,12 @@ program test_qz
         end do
         
         write(*, '("---------------------------------------------------------------")')
-
         write(*, '(" ")')
-        write(*, '("* Generalized Eigenvectors (VL, VR)")')
-        
-        i = 1
-        do while (i <= N)
-            
-            write(*, '(" ")')
-            write(*, '("Eigenvector Pair ", I0, ": Lambda = (", F6.3, " + ", F6.3, "i) / ", F6.3, ")")') &
-                 i, ALPHAR(i), ALPHAI(i), BETA(i)
 
-            if (ALPHAI(i) .eq. 0.0_8) then
-                ! Real Eigenvalue: Eigenvector is in column i
-                write(*, '("  Right Eigenvector (VR):")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + 0.000000i")') j, VR(j, i)
-                end do
-                write(*, '("  Left Eigenvector (VL):")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + 0.000000i")') j, VL(j, i)
-                end do
-                i = i + 1
-            else
-                ! Complex Eigenvalue Pair: Eigenvectors are in columns i and i+1
-                ! First eigenvector (lambda) = VR(:, i) + i * VR(:, i+1)
-                write(*, '("  Right Eigenvector (VR) - First of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + ", F10.6, "i")') VR(j, i), VR(j, i+1)
-                end do
-                ! Second eigenvector (lambda_conjugate) = VR(:, i) - i * VR(:, i+1)
-                write(*, '("  Right Eigenvector (VR) - Second of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " - ", F10.6, "i")') VR(j, i), VR(j, i+1)
-                end do
-                ! Repeat for Left Eigenvector (VL)
-                write(*, '("  Left Eigenvector (VL) - First of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + ", F10.6, "i")') VL(j, i), VL(j, i+1)
-                end do
-                write(*, '("  Left Eigenvector (VL) - Second of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " - ", F10.6, "i")') VL(j, i), VL(j, i+1)
-                end do
-                i = i + 2 ! Skip the next column as it was handled in this pair
-            end if
-        end do
+        call print_matrix(A)
+        call print_matrix(B)
+        call print_matrix(VL)
+        call print_matrix(VR)
 
     else if (INFO < 0) then
         write(*, '("Error: Argument ", I0, " in DGGEV3 had an illegal value.")') -INFO
@@ -202,7 +158,7 @@ program test_qz
 
     if (INFO2 == 0) then
         write(*, '("---------------------------------------------------------------")')
-        write(*, '("Index |   Alpha Real |   Alpha Imag |    Beta    |   Lambda (Approx.) ")')
+        write(*, '("Index |    ALPHAR    |    ALPHAI    |    BETA    |   LAMBDA ")')
         write(*, '("---------------------------------------------------------------")')
         
         do i = 1, N
@@ -223,53 +179,13 @@ program test_qz
         end do
         
         write(*, '("---------------------------------------------------------------")')
-
         write(*, '(" ")')
-        write(*, '("* Generalized Eigenvectors (VL, VR)")')
+
+        call print_matrix(A2)
+        call print_matrix(B2)
+        call print_matrix(VL2)
+        call print_matrix(VR2)
         
-        i = 1
-        do while (i <= N)
-            
-            write(*, '(" ")')
-            write(*, '("Eigenvector Pair ", I0, ": Lambda = (", F6.3, " + ", F6.3, "i) / ", F6.3, ")")') &
-                 i, ALPHAR2(i), ALPHAI2(i), BETA2(i)
-
-            if (ALPHAI2(i) .eq. 0.0_8) then
-                ! Real Eigenvalue: Eigenvector is in column i
-                write(*, '("  Right Eigenvector (VR):")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + 0.000000i")') j, VR2(j, i)
-                end do
-                write(*, '("  Left Eigenvector (VL):")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + 0.000000i")') j, VL2(j, i)
-                end do
-                i = i + 1
-            else
-                ! Complex Eigenvalue Pair: Eigenvectors are in columns i and i+1
-                ! First eigenvector (lambda) = VR(:, i) + i * VR(:, i+1)
-                write(*, '("  Right Eigenvector (VR) - First of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + ", F10.6, "i")') VR2(j, i), VR2(j, i+1)
-                end do
-                ! Second eigenvector (lambda_conjugate) = VR(:, i) - i * VR(:, i+1)
-                write(*, '("  Right Eigenvector (VR) - Second of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " - ", F10.6, "i")') VR2(j, i), VR2(j, i+1)
-                end do
-                ! Repeat for Left Eigenvector (VL)
-                write(*, '("  Left Eigenvector (VL) - First of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " + ", F10.6, "i")') VL2(j, i), VL2(j, i+1)
-                end do
-                write(*, '("  Left Eigenvector (VL) - Second of Conjugate Pair:")')
-                do j = 1, N
-                    write(*, '("    ", I2, ": ", F10.6, " - ", F10.6, "i")') VL2(j, i), VL2(j, i+1)
-                end do
-                i = i + 2 ! Skip the next column as it was handled in this pair
-            end if
-        end do
-
     else if (INFO2 < 0) then
         write(*, '("Error: Argument ", I0, " in DGGEV3 had an illegal value.")') -INFO2
     else
