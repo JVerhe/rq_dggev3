@@ -51,27 +51,32 @@ program test_qz
     integer :: i, j
     ! Variables moved from inside the DO loop to resolve the "Unexpected data declaration" error.
     real(kind=8) :: lambda_real, lambda_imag 
+    real(kind=8) :: lambda_real2, lambda_imag2 
 
     ! --- 1. Initialize Matrices A and B ---
     ! Example: A simple diagonal pencil (A-lambda*B).
     ! A is upper triangular with eigenvalues 1, 2, 3. B is identity.
     ! Expected generalized eigenvalues (lambda): 1.0, 2.0, 3.0
     
-    A = reshape([1.0, 0.0, 0.0, & ! Column 1
-                 1.0, 2.0, 0.0, & ! Column 2
+    A = reshape([1.0, 4.0, 5.0, & ! Column 1
+                 1.0, 2.0, 6.0, & ! Column 2
                  1.0, 1.0, 3.0], & ! Column 3
                  shape=[N, N])
-                 
-    B = 0.0 ! Zero out B first
-    B(1,1) = 1.0; B(2,2) = 1.0; B(3,3) = 1.0 ! Identity matrix
 
-    A2 = reshape([1.0, 0.0, 0.0, & ! Column 1
-                 1.0, 2.0, 0.0, & ! Column 2
+    B = reshape([1.0, 4.0, 3.0, & ! Column 1
+                 1.0, 1.0, 2.0, & ! Column 2
+                 1.0, 1.0, 1.0], & ! Column 3
+                 shape=[N, N])
+
+    A2 = reshape([1.0, 4.0, 5.0, & ! Column 1
+                 1.0, 2.0, 6.0, & ! Column 2
                  1.0, 1.0, 3.0], & ! Column 3
                  shape=[N, N])
                  
-    B2 = 0.0 ! Zero out B first
-    B2(1,1) = 1.0; B2(2,2) = 1.0; B2(3,3) = 1.0 ! Identity matrix
+    B2 = reshape([1.0, 4.0, 3.0, & ! Column 1
+                 1.0, 1.0, 2.0, & ! Column 2
+                 1.0, 1.0, 1.0], & ! Column 3
+                 shape=[N, N])
 
     ! --- 2. Print Input Matrices ---
     write(*, '("--- Input Matrix Pencil (A, B) ---")')
@@ -88,7 +93,7 @@ program test_qz
     ! --- 3. Call DGGEV3 (Generalized Eigenvalue Problem) ---
     ! JOBVL='N', JOBVR='N': Do not compute eigenvectors, only eigenvalues.
     call DGGEV3( &
-        'V', 'V', & ! JOBVL, JOBVR (No eigenvectors)
+        'N', 'N', & ! JOBVL, JOBVR (No eigenvectors)
         N, &        ! N (Matrix size)
         A, LDA, &   ! A, LDA
         B, LDB, &   ! B, LDB
@@ -101,7 +106,7 @@ program test_qz
 
     ! Make copy of input arguments: A B ALPHAR ALPHAI BETA VL VR WORK INFO
     call DGGEV3_RQ( &
-        'V', 'V', & ! JOBVL, JOBVR (No eigenvectors)
+        'N', 'N', & ! JOBVL, JOBVR (No eigenvectors)
         N, &        ! N (Matrix size)
         A2, LDA, &   ! A, LDA
         B2, LDB, &   ! B, LDB
@@ -209,11 +214,11 @@ program test_qz
                      i, ALPHAR2(i), ALPHAI2(i), BETA2(i)
             else
                 ! Finite eigenvalue: lambda = (ALPHAR + i * ALPHAI) / BETA
-                lambda_real = ALPHAR2(i) / BETA2(i)
-                lambda_imag = ALPHAI2(i) / BETA2(i)
+                lambda_real2 = ALPHAR2(i) / BETA2(i)
+                lambda_imag2 = ALPHAI2(i) / BETA2(i)
                 
                 write(*, '(I5, " | ", F12.6, " | ", F12.6, " | ", F10.6, " | ", F10.6, " + ", F10.6, "i")') &
-                     i, ALPHAR2(i), ALPHAI2(i), BETA2(i), lambda_real, lambda_imag
+                     i, ALPHAR2(i), ALPHAI2(i), BETA2(i), lambda_real2, lambda_imag2
             end if
         end do
         

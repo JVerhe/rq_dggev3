@@ -209,7 +209,6 @@
      $             work( iright ), work( iwrk ), ierr )
 *
 *     Reduce B to triangular form (RQ decomposition of B)
-*     TODO:
 *
       irows = ihi + 1 - ilo
       IF( ilv ) THEN
@@ -223,11 +222,10 @@
      $             work( iwrk ), lwork+1-iwrk, ierr )
 *
 *     Apply the orthogonal transformation to matrix A
-*     TODO:
-*
-      CALL dormrq( 'L', 'T', irows, icols, irows, b( ilo, ilo ), ldb,
+*     
+      CALL dormrq( 'R', 'T', irows, icols, irows, b( ilo, ilo ), ldb,
      $             work( itau ), a( ilo, ilo ), lda, work( iwrk ),
-     $             lwork+1-iwrk, ierr )
+     $             lwork+1-iwrk, ierr ) ! Should be correct now
 *
 *     Initialize VL
 *     TODO:
