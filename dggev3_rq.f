@@ -227,23 +227,27 @@
      $             work( itau ), a( ilo, ilo ), lda, work( iwrk ),
      $             lwork+1-iwrk, ierr ) ! Should be correct now
 *
-*     Initialize VL
-*     TODO:
+* Initialize VR (using B for reflectors, VR for accumulation)
 *
-      IF( ilvl ) THEN
-         CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
+      IF( ilvr ) THEN
+         CALL dlaset( 'Full', n, n, zero, one, vr, ldvr )
          IF( irows.GT.1 ) THEN
-            CALL dlacpy( 'L', irows-1, irows-1, b( ilo+1, ilo ), ldb,
-     $                   vl( ilo+1, ilo ), ldvl )
+            CALL dlacpy( 'U', irows, irows, b( ilo, ilo ), ldb,
+     $                   vr( ilo, ilo ), ldvr )
          END IF
-         CALL dorgrq( irows, irows, irows, vl( ilo, ilo ), ldvl,
-     $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr ) !! This line has to be changed
+         CALL dorgrq( irows, irows, irows, vr( ilo, ilo ), ldvr,
+     $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr )
       END IF
 *
-*     Initialize VR
+*     Initialize VL
 *
-      IF( ilvr )
-     $   CALL dlaset( 'Full', n, n, zero, one, vr, ldvr )
+      IF( ilvl )
+     $   CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
+*
+* Initialize VL
+*
+      IF( ilvl )
+     $    CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
 *
 *     Reduce to generalized Hessenberg form
 *
