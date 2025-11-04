@@ -161,6 +161,8 @@ program test_qz
         write(*, '("Error: QZ iteration failed to converge. INFO = ", I0)') INFO2
     end if
 
+    write(*, '("--- OUTPUT MATRICES ---")')
+
     print *, "A:"
     call print_matrix(A)
     print *, "B:"

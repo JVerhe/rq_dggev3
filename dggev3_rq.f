@@ -124,8 +124,8 @@
          CALL dormrq( 'R', 'T', n, n, n, b, ldb, work, a, lda,
      $                work, -1, ierr )
          lwkopt = max( lwkopt, 3*n+int( work( 1 ) ) )
-         IF( ilvl ) THEN
-            CALL dorgrq( n, n, n, vl, ldvl, work, work, -1, ierr )
+         IF( ilvr ) THEN
+            CALL dorgrq( n, n, n, vr, ldvr, work, work, -1, ierr )
             lwkopt = max( lwkopt, 3*n+int( work( 1 ) ) )
          END IF
          IF( ilv ) THEN
@@ -226,28 +226,33 @@
       CALL dormrq( 'R', 'T', irows, icols, irows, b( ilo, ilo ), ldb,
      $             work( itau ), a( ilo, ilo ), lda, work( iwrk ),
      $             lwork+1-iwrk, ierr ) ! Should be correct now
-*
-* Initialize VR (using B for reflectors, VR for accumulation)
-*
+
       IF( ilvr ) THEN
          CALL dlaset( 'Full', n, n, zero, one, vr, ldvr )
          IF( irows.GT.1 ) THEN
-            CALL dlacpy( 'U', irows, irows, b( ilo, ilo ), ldb,
-     $                   vr( ilo, ilo ), ldvr )
+            CALL dlacpy( 'L', irows-1, irows-1, b( ilo+1, ilo ), ldb,
+     $                   vr( ilo+1, ilo ), ldvr )
          END IF
+
          CALL dorgrq( irows, irows, irows, vr( ilo, ilo ), ldvr,
      $                work( itau ), work( iwrk ), lwork+1-iwrk, ierr )
+
+* transpose(vr( ilo, ilo ))
+*     
+      DO J = ilo, ilo + irows - 2
+         DO I = J + 1, ilo + irows - 1
+               TEMP = vr( I, J )
+               vr( I, J ) = vr( J, I )
+               vr( J, I ) = TEMP
+         END DO
+      END DO
+
       END IF
-*
+
 *     Initialize VL
 *
       IF( ilvl )
      $   CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
-*
-* Initialize VL
-*
-      IF( ilvl )
-     $    CALL dlaset( 'Full', n, n, zero, one, vl, ldvl )
 *
 *     Reduce to generalized Hessenberg form
 *
@@ -283,7 +288,7 @@
          ELSE
             info = n + 1
          END IF
-         GO TO 110
+         GO TO 130
       END IF
 *
 *     Compute Eigenvectors
@@ -303,7 +308,7 @@
      $                vr, ldvr, n, in, work( iwrk ), ierr )
          IF( ierr.NE.0 ) THEN
             info = n + 2
-            GO TO 110
+            GO TO 130
          END IF
 *
 *        Undo balancing on VL and VR and normalization
@@ -311,66 +316,66 @@
          IF( ilvl ) THEN
             CALL dggbak( 'P', 'L', n, ilo, ihi, work( ileft ),
      $                   work( iright ), n, vl, ldvl, ierr )
-            DO 50 jc = 1, n
+            DO 70 jc = 1, n
                IF( alphai( jc ).LT.zero )
-     $            GO TO 50
+     $            GO TO 70
                temp = zero
                IF( alphai( jc ).EQ.zero ) THEN
-                  DO 10 jr = 1, n
-                     temp = max( temp, abs( vl( jr, jc ) ) )
-   10             CONTINUE
-               ELSE
-                  DO 20 jr = 1, n
-                     temp = max( temp, abs( vl( jr, jc ) )+
-     $                      abs( vl( jr, jc+1 ) ) )
-   20             CONTINUE
-               END IF
-               IF( temp.LT.smlnum )
-     $            GO TO 50
-               temp = one / temp
-               IF( alphai( jc ).EQ.zero ) THEN
                   DO 30 jr = 1, n
-                     vl( jr, jc ) = vl( jr, jc )*temp
+                     temp = max( temp, abs( vl( jr, jc ) ) )
    30             CONTINUE
                ELSE
                   DO 40 jr = 1, n
-                     vl( jr, jc ) = vl( jr, jc )*temp
-                     vl( jr, jc+1 ) = vl( jr, jc+1 )*temp
+                     temp = max( temp, abs( vl( jr, jc ) )+
+     $                      abs( vl( jr, jc+1 ) ) )
    40             CONTINUE
                END IF
-   50       CONTINUE
+               IF( temp.LT.smlnum )
+     $            GO TO 70
+               temp = one / temp
+               IF( alphai( jc ).EQ.zero ) THEN
+                  DO 50 jr = 1, n
+                     vl( jr, jc ) = vl( jr, jc )*temp
+   50             CONTINUE
+               ELSE
+                  DO 60 jr = 1, n
+                     vl( jr, jc ) = vl( jr, jc )*temp
+                     vl( jr, jc+1 ) = vl( jr, jc+1 )*temp
+   60             CONTINUE
+               END IF
+   70       CONTINUE
          END IF
          IF( ilvr ) THEN
             CALL dggbak( 'P', 'R', n, ilo, ihi, work( ileft ),
      $                   work( iright ), n, vr, ldvr, ierr )
-            DO 100 jc = 1, n
+            DO 120 jc = 1, n
                IF( alphai( jc ).LT.zero )
-     $            GO TO 100
+     $            GO TO 120
                temp = zero
                IF( alphai( jc ).EQ.zero ) THEN
-                  DO 60 jr = 1, n
-                     temp = max( temp, abs( vr( jr, jc ) ) )
-   60             CONTINUE
-               ELSE
-                  DO 70 jr = 1, n
-                     temp = max( temp, abs( vr( jr, jc ) )+
-     $                      abs( vr( jr, jc+1 ) ) )
-   70             CONTINUE
-               END IF
-               IF( temp.LT.smlnum )
-     $            GO TO 100
-               temp = one / temp
-               IF( alphai( jc ).EQ.zero ) THEN
                   DO 80 jr = 1, n
-                     vr( jr, jc ) = vr( jr, jc )*temp
+                     temp = max( temp, abs( vr( jr, jc ) ) )
    80             CONTINUE
                ELSE
                   DO 90 jr = 1, n
-                     vr( jr, jc ) = vr( jr, jc )*temp
-                     vr( jr, jc+1 ) = vr( jr, jc+1 )*temp
+                     temp = max( temp, abs( vr( jr, jc ) )+
+     $                      abs( vr( jr, jc+1 ) ) )
    90             CONTINUE
                END IF
-  100       CONTINUE
+               IF( temp.LT.smlnum )
+     $            GO TO 120
+               temp = one / temp
+               IF( alphai( jc ).EQ.zero ) THEN
+                  DO 100 jr = 1, n
+                     vr( jr, jc ) = vr( jr, jc )*temp
+  100           CONTINUE
+               ELSE
+                  DO 110 jr = 1, n
+                     vr( jr, jc ) = vr( jr, jc )*temp
+                     vr( jr, jc+1 ) = vr( jr, jc+1 )*temp
+  110             CONTINUE
+               END IF
+  120       CONTINUE
          END IF
 *
 *        End of eigenvector calculation
@@ -379,7 +384,7 @@
 *
 *     Undo scaling if necessary
 *
-  110 CONTINUE
+  130 CONTINUE
 *
       IF( ilascl ) THEN
          CALL dlascl( 'G', 0, 0, anrmto, anrm, n, 1, alphar, n,
