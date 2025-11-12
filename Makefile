@@ -4,21 +4,21 @@ FC = gfortran
 CXXFLAGS = -O2 -std=c++17 -Iinclude -I/usr/include/eigen/
 LDFLAGS = -llapack -lblas
 
-SRC_CPP = $(wildcard src/*.cpp)
-SRC_F = src/dggev3_qr.f
-TARGET = main
+TARGET = dggev3_example
+CPP_SOURCES = src/main.cpp src/dggev3_wrapper.cpp
+F_SOURCES = src/dggev3_qr.f src/dggev3_rq.f
 
-OBJ_CPP = $(SRC_CPP:.cpp=.o)
-OBJ_F = $(SRC_F:.f=.o)
+CPP_OBJECTS = $(CPP_SOURCES:.cpp=.o)
+F_OBJECTS = $(F_SOURCES:.f=.o)
 
-$(TARGET): $(OBJ_F) $(OBJ_CPP)
-	$(CXX) $(OBJ_CPP) $(OBJ_F) -o $@ $(LDFLAGS)
+$(TARGET): $(CPP_OBJECTS) $(F_OBJECTS)
+	$(CXX) $(CPP_OBJECTS) $(F_OBJECTS) -o $@ $(LDFLAGS)
 
-%.o: %.f
-	$(FC) -c $< -o $@
-
-%.o: %.cpp
+src/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+src/%.o: src/%.f
+	$(FC) -c $< -o $@
+
 clean:
-	rm -f $(OBJ_CPP) $(OBJ_F) $(TARGET)
+	rm -f $(CPP_OBJECTS) $(F_OBJECTS) $(TARGET)
