@@ -1,35 +1,24 @@
+CXX = g++
 FC = gfortran
-FFLAGS = -O3 -Wall -Wextra
-LIBS = -llapack -lblas
 
-# Module source files (.f90)
-MODULE_SRC = modules/matrix_module.f90 modules/quicksort.f90
+CXXFLAGS = -O2 -std=c++17 -Iinclude -I/usr/include/eigen/
+LDFLAGS = -llapack -lblas
 
-# Module object files should live in modules/
-MODULE_OBJ = modules/matrix_module.o modules/quicksort.o
+SRC_CPP = $(wildcard src/*.cpp)
+SRC_F = src/dggev3_qr.f
+TARGET = main
 
-SRCS = dggev3_qr.f dggev3_rq.f test_qz.f90 compare_methods.f90
+OBJ_CPP = $(SRC_CPP:.cpp=.o)
+OBJ_F = $(SRC_F:.f=.o)
 
-all: test_qz compare_methods
-
-# Compile modules → .o & .mod go into modules/
-modules/%.o: modules/%.f90
-	$(FC) $(FFLAGS) -c $< -J modules -o $@
-
-# Compile regular sources → .o stays in working dir
-%.o: %.f90
-	$(FC) $(FFLAGS) -c $< -I modules
+$(TARGET): $(OBJ_F) $(OBJ_CPP)
+	$(CXX) $(OBJ_CPP) $(OBJ_F) -o $@ $(LDFLAGS)
 
 %.o: %.f
-	$(FC) $(FFLAGS) -c $< -I modules
+	$(FC) -c $< -o $@
 
-# Executable: test_qz
-test_qz: $(MODULE_OBJ) test_qz.o dggev3_qr.o dggev3_rq.o
-	$(FC) $(FFLAGS) $(MODULE_OBJ) test_qz.o dggev3_qr.o dggev3_rq.o -o $@ $(LIBS)
-
-# Executable: compare_methods
-compare_methods: $(MODULE_OBJ) compare_methods.o dggev3_qr.o dggev3_rq.o
-	$(FC) $(FFLAGS) $(MODULE_OBJ) compare_methods.o dggev3_qr.o dggev3_rq.o -o $@ $(LIBS)
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o *.mod modules/*.o modules/*.mod test_qz compare_methods
+	rm -f $(OBJ_CPP) $(OBJ_F) $(TARGET)

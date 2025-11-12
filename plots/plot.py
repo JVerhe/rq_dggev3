@@ -4,7 +4,7 @@ import os
 import sys
 
 # --- Configuration ---
-INPUT_DIR = 'results'
+INPUT_DIR = '../results'
 OUTPUT_DIR = 'plots'
 # ---------------------
 
