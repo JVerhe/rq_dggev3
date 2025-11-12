@@ -6,19 +6,22 @@ program compare_methods
     external DGGEV3
 
     integer :: N, LWORK_SIZE, LDA, LDB, LDVL, LDVR, INFO
-    integer, parameter :: N_MAX = 10, METHODS = 2
-    integer :: i, j, k
+    integer, parameter :: N_MAX = 2500, METHODS = 2
+    integer :: i, j, k, l
 
     real(kind=8), allocatable :: tau(:)
 
     real(kind=8), allocatable :: A(:,:), B(:,:), D(:,:), P(:,:), Q(:,:)
-    real(kind=8), allocatable :: ALPHAR(:), ALPHAI(:), BETA(:), WORK(:)
+    real(kind=8), allocatable :: ALPHAR(:), ALPHAI(:), BETA(:)
     real(kind=8) :: lambda_real, lambda_imag, norm(METHODS)
     complex(kind=8), allocatable :: lambda(:)
     real(kind=8), allocatable :: VL(:,:), VR(:,:)
     complex(kind=8), allocatable :: EIGS(:)
 
-    
+    real(kind=8), allocatable :: WORK_QR(:)    ! workspace for QR (DGEQRF/DORGQR)
+    real(kind=8), allocatable :: WORK_GE(:)    ! workspace for DGGEV3
+    real(kind=8), allocatable :: work_query(:)
+    integer :: LWORK_QR, LWORK_GE
 
     ! Initialize Random Seed
     integer :: n_size, seed_id = 123456789
@@ -28,18 +31,25 @@ program compare_methods
     seed_array = seed_id
     call RANDOM_SEED(PUT=seed_array)
 
-    open(unit=10, file="output.txt", status="unknown")
+    open(unit=10, file="raw.txt", status="unknown")
 
-    do N = 1, N_MAX
+    do l = 2, 15
+        N = FLOOR(1.8**l)
+        print *,N
+        if (N .gt. N_MAX) then
+            exit
+        end if
 
         ! --- Parameters ---
-        LWORK_SIZE = 8*N ! Recommended minimum workspace size
+        LWORK_GE = 8*N ! Recommended minimum workspace size
+        LWORK_QR = N
 
         allocate( A(N,N), B(N,N), D(N,N), P(N,N), Q(N,N) )
         allocate( VL(N,N), VR(N,N) )
         allocate( ALPHAR(N), ALPHAI(N), BETA(N), EIGS(N) )
         allocate( lambda(N) )
-        allocate( WORK(LWORK_SIZE) )    
+        allocate( WORK_QR(LWORK_QR) ) 
+
         LDA = N             
         LDB = N               
         LDVL = N              
@@ -57,18 +67,29 @@ program compare_methods
         end do
         CALL RANDOM_NUMBER(P)
         CALL RANDOM_NUMBER(Q)
-        do i=1,n
-            do j=1,n
-                P(i,j) = P(i,j) - 0.5d0
-                Q(i,j) = Q(i,j) - 0.5d0
-            end do
-        end do
-        ! Use QR to generate orthogonal matrices
-        CALL DGEQRF(N,N,P,N,tau,WORK,LWORK_SIZE,INFO)
-        CALL DORGQR(N,N,N,P,N,tau,WORK,LWORK_SIZE,INFO)
+        ! Transform range to [-0.5, 0.5]
+        P = P - 0.5d0
+        Q = Q - 0.5d0
 
-        call DGEQRF(n, n, Q, n, tau, WORK, LWORK_SIZE, INFO)
-        call DORGQR(n, n, n, Q, n, tau, WORK, LWORK_SIZE, INFO)
+
+        ! Use QR to generate orthogonal matrices
+        CALL DGEQRF(N,N,P,N,tau,WORK_QR,LWORK_QR,INFO)
+        if (INFO /= 0) then
+            write(*,*) "DGEQRF(P) failed, INFO=", INFO; stop
+        end if
+        CALL DORGQR(N,N,N,P,N,tau,WORK_QR,LWORK_QR,INFO)
+        if (INFO /= 0) then
+            write(*,*) "DORGQR(P) failed, INFO=", INFO; stop
+        end if
+
+        call DGEQRF(n, n, Q, n, tau, WORK_QR, LWORK_QR, INFO)
+        if (INFO /= 0) then
+            write(*,*) "DGEQRF(Q) failed, INFO=", INFO; stop
+        end if
+        call DORGQR(n, n, n, Q, n, tau, WORK_QR, LWORK_QR, INFO)
+        if (INFO /= 0) then
+            write(*,*) "DORGQR(Q) failed, INFO=", INFO; stop
+        end if
 
         do k=1,METHODS
             ! A = P*D
@@ -82,6 +103,20 @@ program compare_methods
             B = matmul(P,Q)
 
             if (K == 1) then
+                allocate(work_query(1))
+                work_query(1) = 0.0d0
+                LWORK_GE = -1
+
+                call DGGEV3('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
+                if (INFO /= 0) then
+                    write(*,*) 'Workspace query for DGGEV3 returned INFO=', INFO
+                    stop
+                end if
+
+                LWORK_GE = int(work_query(1))
+                deallocate(work_query)
+                allocate(WORK_GE(LWORK_GE))
+
                 call DGGEV3( &
                     'V', 'V', & ! JOBVL, JOBVR 
                     N, &        ! N (Matrix size)
@@ -90,10 +125,27 @@ program compare_methods
                     ALPHAR, ALPHAI, BETA, & ! Outputs: ALPHAR, ALPHAI, BETA
                     VL, LDVL, & ! VL, LDVL 
                     VR, LDVR, & ! VR, LDVR
-                    WORK, LWORK_SIZE, & ! WORK, LWORK
+                    WORK_GE, LWORK_GE, & ! WORK, LWORK
                     INFO &
                 )
+                if (INFO /= 0) then
+                    write(*,*) 'DGGEV3 returned INFO=', INFO
+                end if
             else 
+                allocate(work_query(1))
+                work_query(1) = 0.0d0
+                LWORK_GE = -1
+
+                call DGGEV3('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
+                if (INFO /= 0) then
+                    write(*,*) 'Workspace query for DGGEV3 returned INFO=', INFO
+                    stop
+                end if
+
+                LWORK_GE = int(work_query(1))
+                deallocate(work_query)
+                allocate(WORK_GE(LWORK_GE))
+
                 call DGGEV3_RQ( &
                     'V', 'V', & ! JOBVL, JOBVR 
                     N, &        ! N (Matrix size)
@@ -102,10 +154,12 @@ program compare_methods
                     ALPHAR, ALPHAI, BETA, & ! Outputs: ALPHAR, ALPHAI, BETA
                     VL, LDVL, & ! VL, LDVL 
                     VR, LDVR, & ! VR, LDVR
-                    WORK, LWORK_SIZE, & ! WORK, LWORK
+                    WORK_GE, LWORK_GE, & ! WORK, LWORK
                     INFO &
                 )
             end if
+
+            deallocate( WORK_GE )
 
             if (INFO == 0) then
                 do i = 1, N
@@ -128,21 +182,14 @@ program compare_methods
                 write(*, '("Error: QZ iteration failed to converge. INFO = ", I0)') INFO
             end if
 
+            ! norm(1) = qr_error, norm(2) = rq_error in iteration N
             norm(k) = norm_diff(EIGS, lambda)
-
-            ! do i = 1, N
-            !     print *, lambda(i)
-            ! end do
-
-            ! print *, "Norm of Error", norm
-
+            
         end do
 
         ! N qr rq
         write(10,*) N, norm
-
-        deallocate( A, B, D, P, Q, VL, VR, ALPHAR, ALPHAI, BETA, EIGS, WORK, tau, lambda )
-
+        deallocate( A, B, D, P, Q, WORK_QR, VL, VR, ALPHAR, ALPHAI, BETA, EIGS, tau, lambda )
     end do
 
     close(10)
