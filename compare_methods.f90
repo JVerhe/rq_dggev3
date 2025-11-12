@@ -3,11 +3,15 @@ program compare_methods
     use quicksort
     use, intrinsic :: ieee_arithmetic
     implicit none
-    external DGGEV3
 
-    integer :: N, LWORK_SIZE, LDA, LDB, LDVL, LDVR, INFO
+    integer :: N, LDA, LDB, LDVL, LDVR, INFO
     integer, parameter :: N_MAX = 2500, METHODS = 2
     integer :: i, j, k, l
+
+    character(len=30) :: timestamp
+    character(len=50) :: fname
+    integer :: year, month, day, hour, minute, second
+    integer :: date_vals(7)
 
     real(kind=8), allocatable :: tau(:)
 
@@ -31,14 +35,26 @@ program compare_methods
     seed_array = seed_id
     call RANDOM_SEED(PUT=seed_array)
 
-    open(unit=10, file="raw.txt", status="unknown")
+    ! Create new file with current timestamp
+    call date_and_time(values=date_vals)
+    year   = date_vals(1)
+    month  = date_vals(2)
+    day    = date_vals(3)
+    hour   = date_vals(5)
+    minute = date_vals(6)
+    write(timestamp,'(I4.4,"_",I2.2,"_",I2.2,"_",I2.2,"-",I2.2)') &
+        year, month, day, hour, minute, second
+    fname = 'results/' // trim(timestamp) // "_output.txt"
+    open(unit=10, file=fname, status="unknown", action="write")
 
     do l = 2, 15
         N = FLOOR(1.8**l)
-        print *,N
+        
         if (N .gt. N_MAX) then
+            print *, "Writing result to ", fname
             exit
         end if
+        print *,N
 
         ! --- Parameters ---
         LWORK_GE = 8*N ! Recommended minimum workspace size
@@ -107,7 +123,7 @@ program compare_methods
                 work_query(1) = 0.0d0
                 LWORK_GE = -1
 
-                call DGGEV3('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
+                call DGGEV3_QR('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
                 if (INFO /= 0) then
                     write(*,*) 'Workspace query for DGGEV3 returned INFO=', INFO
                     stop
@@ -117,7 +133,7 @@ program compare_methods
                 deallocate(work_query)
                 allocate(WORK_GE(LWORK_GE))
 
-                call DGGEV3( &
+                call DGGEV3_QR( &
                     'V', 'V', & ! JOBVL, JOBVR 
                     N, &        ! N (Matrix size)
                     A, LDA, &   ! A, LDA
@@ -136,7 +152,7 @@ program compare_methods
                 work_query(1) = 0.0d0
                 LWORK_GE = -1
 
-                call DGGEV3('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
+                call DGGEV3_RQ('N','N', N, A, LDA, B, LDB, ALPHAR, ALPHAI, BETA, VL, LDVL, VR, LDVR, work_query, LWORK_GE, INFO)
                 if (INFO /= 0) then
                     write(*,*) 'Workspace query for DGGEV3 returned INFO=', INFO
                     stop

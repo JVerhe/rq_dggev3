@@ -1,7 +1,7 @@
 program test_qz
     use matrix_module
     implicit none
-    external DGGEV3
+    ! external DGGEV3
 
     ! --- Parameters ---
     integer, parameter :: N = 7      ! Dimension of the square matrices
@@ -83,7 +83,7 @@ program test_qz
     call print_matrix(B)
 
     ! --- 3. Call DGGEV3 (Generalized Eigenvalue Problem) ---
-    call DGGEV3( &
+    call DGGEV3_QR( &
         'V', 'V', & ! JOBVL, JOBVR 
         N, &        ! N (Matrix size)
         A, LDA, &   ! A, LDA

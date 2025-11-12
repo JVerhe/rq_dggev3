@@ -1,72 +1,135 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 import sys
 
-# Define the file name
-file_name = 'output.txt'
-directory = 'plots/'
-output_image_file = 'semilogy_plot.png'
-output_path = directory + output_image_file
+# --- Configuration ---
+INPUT_DIR = 'results'
+OUTPUT_DIR = 'plots'
+# ---------------------
 
-try:
-    # Use numpy.loadtxt to read the data efficiently.
-    # It automatically handles the variable spacing and exponential notation.
-    # 'data' will be a 2D numpy array where each row is a line from the file.
-    data = np.loadtxt(file_name)
+def select_data_file():
+    """
+    Lists .txt files in the INPUT_DIR, prompts the user to select one, 
+    and returns the full path of the selected file.
+    """
+    try:
+        # Ensure the input directory exists
+        if not os.path.isdir(INPUT_DIR):
+            print(f"Error: Input directory '{INPUT_DIR}' not found.")
+            # Exit the script gracefully if the expected directory is missing
+            sys.exit(1)
 
-    # ----------------------------------------------
-    # 1. Separate the columns
-    # The first column (index 0) is the X-axis (data[0] in Python/NumPy slicing)
-    # The second column (index 1) is the first Y-data (data[1])
-    # The third column (index 2) is the second Y-data (data[2])
-    X = data[:, 0]  # All rows, first column
-    Y1 = data[:, 1] # All rows, second column
-    Y2 = data[:, 2] # All rows, third column
+        # 1. Look inside the directory /results and filter for .txt files
+        all_files = os.listdir(INPUT_DIR)
+        txt_files = sorted([f for f in all_files if f.endswith('.txt')])
+
+        if not txt_files:
+            print(f"No .txt files found in the '{INPUT_DIR}' directory. Exiting.")
+            sys.exit(1)
+
+        # Write the names of all the files inside and ask for selection
+        print(f"\nFiles found in '{INPUT_DIR}/':")
+        for i, filename in enumerate(txt_files):
+            print(f"  [{i + 1}] {filename}")
+
+        # 2. Ask the user to select a txt file via a number input
+        while True:
+            try:
+                selection = input("\nEnter the number of the file you want to plot: ")
+                # Convert input to 0-based index
+                index = int(selection) - 1
+                
+                if 0 <= index < len(txt_files):
+                    selected_filename = txt_files[index]
+                    full_file_path = os.path.join(INPUT_DIR, selected_filename)
+                    print(f"Selected file: {selected_filename}")
+                    return full_file_path
+                else:
+                    print(f"Invalid selection. Please enter a number between 1 and {len(txt_files)}.")
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+
+    except Exception as e:
+        print(f"An error occurred during file selection: {e}")
+        sys.exit(1)
+
+
+def generate_plot(file_path):
+    """
+    Reads the data from the given file_path, generates the semilogy plot, 
+    and saves it to the OUTPUT_DIR.
+    """
+    # Create output directory if it doesn't exist
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    # Filter out any zero values, as log(0) is undefined and will cause errors
-    # in the semilogy plot. We use a mask for Y1 and Y2.
-    # This ensures that only positive, non-zero data points are plotted on the log scale.
-    mask1 = Y1 > 0
-    mask2 = Y2 > 0
+    # Get just the filename for titles and output path
+    input_filename = os.path.basename(file_path)
+    base_name = os.path.splitext(input_filename)[0]
+    output_image_file = f'{base_name}_semilogy.png'
+    output_path = os.path.join(OUTPUT_DIR, output_image_file)
 
-    # Apply the masks to X and Y data for plotting
-    X1_plot, Y1_plot = X[mask1], Y1[mask1]
-    X2_plot, Y2_plot = X[mask2], Y2[mask2]
+    try:
+        # Use numpy.loadtxt to read the data efficiently.
+        data = np.loadtxt(file_path)
 
-    # ----------------------------------------------
-    # 2. Create the Semilogy Plot
-    plt.figure(figsize=(10, 6))
+        # ----------------------------------------------
+        # 1. Separate the columns
+        X = data[:, 0]  # All rows, first column
+        Y1 = data[:, 1] # All rows, second column
+        Y2 = data[:, 2] # All rows, third column
+        
+        # Filter out zero values (log(0) is undefined)
+        mask1 = Y1 > 0
+        mask2 = Y2 > 0
 
-    # Plot the second column (Y1) data using semilogy (log scale on Y-axis)
-    # We use markers for visibility since there are few data points.
-    plt.semilogy(X1_plot, Y1_plot, 'o-', label='QR-version', color='darkblue')
+        # Apply the masks to X and Y data for plotting
+        X1_plot, Y1_plot = X[mask1], Y1[mask1]
+        X2_plot, Y2_plot = X[mask2], Y2[mask2]
 
-    # Plot the third column (Y2) data using semilogy
-    plt.semilogy(X2_plot, Y2_plot, 's--', label='RQ-version', color='red')
+        # ----------------------------------------------
+        # 2. Create the Semilogy Plot
+        plt.figure(figsize=(10, 6))
 
-    # ----------------------------------------------
-    # 3. Add labels, title, and styling
-    plt.title(f'Numerical accuracy of Both methods', fontsize=16)
-    plt.xlabel('Dimension', fontsize=12)
-    plt.ylabel('2-Norm of eigenvalue errorvector', fontsize=12)
+        # Plot the second column (Y1) data
+        plt.semilogy(X1_plot, Y1_plot, 'o-', label='QR-version', color='darkblue')
 
-    # Add a legend to differentiate the lines
-    plt.legend(frameon=True, shadow=True, fontsize=10)
+        # Plot the third column (Y2) data
+        plt.semilogy(X2_plot, Y2_plot, 's--', label='RQ-version', color='red')
 
-    # Add grid lines for better readability on the log scale
-    plt.grid(True, which="both", ls="--", linewidth=0.5)
+        # ----------------------------------------------
+        # 3. Add labels, title, and styling
+        plt.title(f'Numerical Accuracy of Both Methods ({input_filename})', fontsize=16)
+        plt.xlabel('Dimension', fontsize=12)
+        plt.ylabel('2-Norm of eigenvalue errorvector', fontsize=12)
 
-    # Use tight layout to prevent labels from being cut off
-    plt.tight_layout()
+        # Add a legend and grid
+        plt.legend(frameon=True, shadow=True, fontsize=10)
+        plt.grid(True, which="both", ls="--", linewidth=0.5)
 
-    # Save the plot to a file instead of displaying it interactively,
-    # resolving the FigureCanvasAgg UserWarning.
-    plt.savefig(output_path)
-    print(f"Plot successfully saved to {output_path}")
+        plt.tight_layout()
+
+        # Save the plot to the /plots directory
+        plt.savefig(output_path)
+        print(f"\nPlot successfully saved to {output_path}")
+
+    except FileNotFoundError:
+        # This error should ideally be caught in select_data_file, but included for robustness
+        print(f"Error: The file '{input_filename}' was not found.")
+    except Exception as e:
+        print(f"An unexpected error occurred during plotting: {e}")
 
 
-except FileNotFoundError:
-    print(f"Error: The file '{file_name}' was not found.")
-    print("Please make sure 'output.txt' is in the same directory as the script.")
-except Exception as e:
-    print(f"An unexpected error occurred: {e}")
+if __name__ == "__main__":
+    # Main execution flow
+    
+    # First, check if the required output directory exists.
+    if not os.path.exists(OUTPUT_DIR):
+        print(f"Creating output directory: {OUTPUT_DIR}/")
+        os.makedirs(OUTPUT_DIR)
+        
+    # Get the selected file path interactively
+    selected_path = select_data_file()
+    
+    # Generate and save the plot
+    generate_plot(selected_path)
