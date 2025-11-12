@@ -5,27 +5,26 @@ program compare_methods
     implicit none
 
     integer :: N, LDA, LDB, LDVL, LDVR, INFO
-    integer, parameter :: N_MAX = 2500, METHODS = 2
+    integer, parameter :: N_MAX = 700, METHODS = 2
     integer :: i, j, k, l
 
     character(len=30) :: timestamp
     character(len=50) :: fname
-    integer :: year, month, day, hour, minute, second
-    integer :: date_vals(7)
+    integer :: year, month, day, hour, minute
+    integer :: date_vals(8)
 
     real(kind=8), allocatable :: tau(:)
 
-    real(kind=8), allocatable :: A(:,:), B(:,:), D(:,:), P(:,:), Q(:,:)
+    real(kind=8), allocatable :: A(:,:), B(:,:)
     real(kind=8), allocatable :: ALPHAR(:), ALPHAI(:), BETA(:)
     real(kind=8) :: lambda_real, lambda_imag, norm(METHODS)
     complex(kind=8), allocatable :: lambda(:)
     real(kind=8), allocatable :: VL(:,:), VR(:,:)
     complex(kind=8), allocatable :: EIGS(:)
 
-    real(kind=8), allocatable :: WORK_QR(:)    ! workspace for QR (DGEQRF/DORGQR)
     real(kind=8), allocatable :: WORK_GE(:)    ! workspace for DGGEV3
     real(kind=8), allocatable :: work_query(:)
-    integer :: LWORK_QR, LWORK_GE
+    integer :: LWORK_GE
 
     ! Initialize Random Seed
     integer :: n_size, seed_id = 123456789
@@ -43,7 +42,7 @@ program compare_methods
     hour   = date_vals(5)
     minute = date_vals(6)
     write(timestamp,'(I4.4,"_",I2.2,"_",I2.2,"_",I2.2,"-",I2.2)') &
-        year, month, day, hour, minute, second
+        year, month, day, hour, minute
     fname = 'results/' // trim(timestamp) // "_output.txt"
     open(unit=10, file=fname, status="unknown", action="write")
 
@@ -58,65 +57,23 @@ program compare_methods
 
         ! --- Parameters ---
         LWORK_GE = 8*N ! Recommended minimum workspace size
-        LWORK_QR = N
 
-        allocate( A(N,N), B(N,N), D(N,N), P(N,N), Q(N,N) )
+        allocate( A(N,N), B(N,N) )
         allocate( VL(N,N), VR(N,N) )
         allocate( ALPHAR(N), ALPHAI(N), BETA(N), EIGS(N) )
         allocate( lambda(N) )
-        allocate( WORK_QR(LWORK_QR) ) 
 
         LDA = N             
         LDB = N               
         LDVL = N              
         LDVR = N              
         
-        allocate( tau(N) )
-        
         ! --- 1. Initialize Matrices A and B ---
         ! Initialize P and Q first
         ! A = PDQ, B = PQ, with P and Q orthogonal matrices
-        D = 0.0_8
-        do i = 1, N
-            EIGS(i) = i
-            D(i,i) = i
-        end do
-        CALL RANDOM_NUMBER(P)
-        CALL RANDOM_NUMBER(Q)
-        ! Transform range to [-0.5, 0.5]
-        P = P - 0.5d0
-        Q = Q - 0.5d0
-
-
-        ! Use QR to generate orthogonal matrices
-        CALL DGEQRF(N,N,P,N,tau,WORK_QR,LWORK_QR,INFO)
-        if (INFO /= 0) then
-            write(*,*) "DGEQRF(P) failed, INFO=", INFO; stop
-        end if
-        CALL DORGQR(N,N,N,P,N,tau,WORK_QR,LWORK_QR,INFO)
-        if (INFO /= 0) then
-            write(*,*) "DORGQR(P) failed, INFO=", INFO; stop
-        end if
-
-        call DGEQRF(n, n, Q, n, tau, WORK_QR, LWORK_QR, INFO)
-        if (INFO /= 0) then
-            write(*,*) "DGEQRF(Q) failed, INFO=", INFO; stop
-        end if
-        call DORGQR(n, n, n, Q, n, tau, WORK_QR, LWORK_QR, INFO)
-        if (INFO /= 0) then
-            write(*,*) "DORGQR(Q) failed, INFO=", INFO; stop
-        end if
-
         do k=1,METHODS
-            ! A = P*D
-            do i=1,n
-                do j=1,n
-                    A(i,j) = sum(P(i,:)*D(:,j))
-                end do
-            end do
-            A = matmul(A,Q)
-            ! B = P*Q
-            B = matmul(P,Q)
+            
+            call generate_reg_pencil(N,A,B,EIGS)
 
             if (K == 1) then
                 allocate(work_query(1))
@@ -205,7 +162,7 @@ program compare_methods
 
         ! N qr rq
         write(10,*) N, norm
-        deallocate( A, B, D, P, Q, WORK_QR, VL, VR, ALPHAR, ALPHAI, BETA, EIGS, tau, lambda )
+        deallocate( A, B, VL, VR, ALPHAR, ALPHAI, BETA, EIGS, lambda )
     end do
 
     close(10)
