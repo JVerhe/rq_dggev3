@@ -44,7 +44,7 @@ int main()
     cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
     cout << "Writing to " << filename << "\n\n";
 
-    for (int exp = 1; exp <= 11; ++exp) // 2^12 == 4096
+    for (int exp = 2; exp <= 2; ++exp) // 2^11 == 4096
     {
         int N = 1 << exp;
 
@@ -58,7 +58,7 @@ int main()
 
         for (int t = 0; t < trials; ++t)
         {
-            Pencil pencil = generate_regular_pencil(N);
+            Pencil pencil = generate_singular_pencil(N);
 
             // QR method
             auto t1 = chrono::high_resolution_clock::now();
