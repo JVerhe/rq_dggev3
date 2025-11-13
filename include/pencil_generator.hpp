@@ -16,6 +16,8 @@ struct Pencil
 // and D = diag(1, 2, ..., N)
 Pencil generate_regular_pencil(int N);
 
+Pencil generate_singular_pencil(int N);
+
 // (Optional extensions for future)
 // Pencil generate_singular_pencil(int N);
 // Pencil generate_defective_pencil(int N);

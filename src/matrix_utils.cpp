@@ -1,30 +1,73 @@
 #include "matrix_utils.hpp"
-#include <algorithm>
+#include <limits>
 #include <cmath>
+#include <stdexcept>
+#include <complex>
+#include <vector>
+#include <Eigen/Dense>
 
-using namespace Eigen;
-
-double eigen_error_norm(const std::vector<std::complex<double>> &exact,
-                        const VectorXd &alphar,
-                        const VectorXd &alphai,
-                        const VectorXd &beta)
+double eigen_error_norm(
+    const std::vector<std::complex<double>> &reference,
+    const Eigen::VectorXd &alphar,
+    const Eigen::VectorXd &alphai,
+    const Eigen::VectorXd &beta)
 {
-    int n = static_cast<int>(exact.size());
-    std::vector<std::complex<double>> computed(n);
-    for (int i = 0; i < n; ++i)
-        computed[i] = std::complex<double>(alphar[i], alphai[i]) / beta[i];
+    const int N = static_cast<int>(reference.size());
+    if (alphar.size() != N || alphai.size() != N || beta.size() != N)
+        throw std::invalid_argument("Eigenvalue dimension mismatch in eigen_error_norm.");
 
-    // Sort both sets by magnitude for stable pairing
-    auto mag_cmp = [](auto &a, auto &b)
-    { return std::abs(a) < std::abs(b); };
-    std::sort(computed.begin(), computed.end(), mag_cmp);
+    double error_sum = 0.0;
+    int valid_count = 0;
 
-    auto sorted_exact = exact;
-    std::sort(sorted_exact.begin(), sorted_exact.end(), mag_cmp);
+    for (int i = 0; i < N; ++i)
+    {
+        const auto &ref = reference[i];
 
-    double err = 0.0;
-    for (int i = 0; i < n; ++i)
-        err += std::norm(computed[i] - sorted_exact[i]);
+        // Ignore fake singular (NaN) eigenvalues
+        if (std::isnan(ref.real()) || std::isnan(ref.imag()))
+            continue;
 
-    return std::sqrt(err);
+        std::complex<double> comp;
+        if (beta(i) == 0.0)
+        {
+            // True infinite eigenvalue
+            comp = std::complex<double>(std::numeric_limits<double>::infinity(), 0.0);
+        }
+        else
+        {
+            comp = std::complex<double>(alphar(i), alphai(i)) / beta(i);
+        }
+
+        // Handle infinite cases
+        if (std::isinf(ref.real()))
+        {
+            if (std::isinf(comp.real()))
+            {
+                continue; // both infinite → no error
+            }
+            else
+            {
+                error_sum += 1e6; // penalty for finite vs infinite mismatch
+                valid_count++;
+                continue;
+            }
+        }
+
+        if (std::isinf(comp.real()) && !std::isinf(ref.real()))
+        {
+            error_sum += 1e6;
+            valid_count++;
+            continue;
+        }
+
+        // Both finite → normal difference
+        double diff = std::abs(comp - ref);
+        error_sum += diff * diff;
+        valid_count++;
+    }
+
+    if (valid_count == 0)
+        return std::numeric_limits<double>::quiet_NaN();
+
+    return std::sqrt(error_sum / valid_count);
 }

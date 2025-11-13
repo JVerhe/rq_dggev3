@@ -16,7 +16,6 @@ extern "C"
                     double *work, const int *lwork, int *info);
 }
 
-// Generic helper to call either Fortran function
 static GeneralizedEigenResult dggev3_common(
     void (*fortran_func)(const char *, const char *, const int *, double *, const int *, double *, const int *,
                          double *, double *, double *, double *, const int *, double *, const int *,
