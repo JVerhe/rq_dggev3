@@ -4,7 +4,7 @@ import os
 import sys
 
 # --- Configuration ---
-INPUT_DIR = '../results'
+INPUT_DIR = 'results'
 OUTPUT_DIR = 'plots'
 # ---------------------
 
@@ -57,8 +57,8 @@ def select_data_file():
 
 def generate_plot(file_path):
     """
-    Reads the data from the given file_path, generates the semilogy plot, 
-    and saves it to the OUTPUT_DIR.
+    Reads the data from the given file_path, generates the accuracy (semilogy) 
+    and execution time (linear) plots side-by-side, and saves them to the OUTPUT_DIR.
     """
     # Create output directory if it doesn't exist
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -66,7 +66,8 @@ def generate_plot(file_path):
     # Get just the filename for titles and output path
     input_filename = os.path.basename(file_path)
     base_name = os.path.splitext(input_filename)[0]
-    output_image_file = f'{base_name}_semilogy.png'
+    # Update output file name to reflect two plots
+    output_image_file = f'{base_name}_accuracy_and_time.png' 
     output_path = os.path.join(OUTPUT_DIR, output_image_file)
 
     try:
@@ -74,47 +75,70 @@ def generate_plot(file_path):
         data = np.loadtxt(file_path)
 
         # ----------------------------------------------
-        # 1. Separate the columns
-        X = data[:, 0]  # All rows, first column
-        Y1 = data[:, 1] # All rows, second column
-        Y2 = data[:, 2] # All rows, third column
+        # 1. Separate the columns based on the original request and the new requirement
+        X = data[:, 0]    # Column 1 (Index 0): Dimension
         
-        # Filter out zero values (log(0) is undefined)
-        mask1 = Y1 > 0
-        mask2 = Y2 > 0
+        # Accuracy data (Columns 2 and 3)
+        Y_acc_1 = data[:, 1] # Index 1: Accuracy 1 (QR-version)
+        Y_acc_2 = data[:, 2] # Index 2: Accuracy 2 (RQ-version)
+        
+        # Execution time data (Columns 4 and 5)
+        Y_time_1 = data[:, 3] # Index 3: Time 1 (QR-version)
+        Y_time_2 = data[:, 4] # Index 4: Time 2 (RQ-version)
 
-        # Apply the masks to X and Y data for plotting
-        X1_plot, Y1_plot = X[mask1], Y1[mask1]
-        X2_plot, Y2_plot = X[mask2], Y2[mask2]
+        # Filter zero values for the accuracy plot (only log-scaled data needs filtering)
+        mask_acc_1 = Y_acc_1 > 0
+        mask_acc_2 = Y_acc_2 > 0
+
+        # Apply masks
+        X1_acc_plot, Y1_acc_plot = X[mask_acc_1], Y_acc_1[mask_acc_1]
+        X2_acc_plot, Y2_acc_plot = X[mask_acc_2], Y_acc_2[mask_acc_2]
+        # Time data doesn't require filtering unless times can be zero/negative. 
+        # Assuming non-zero positive times for simplicity.
 
         # ----------------------------------------------
-        # 2. Create the Semilogy Plot
-        plt.figure(figsize=(10, 6))
+        # 2. Create Figure with Two Subplots
+        
+        # Create a figure and a set of subplots (1 row, 2 columns)
+        fig, (ax_acc, ax_time) = plt.subplots(1, 2, figsize=(16, 6)) 
+        
+        # Set overall title for the figure
+        fig.suptitle(f'Comparative Analysis: Accuracy and Execution Time ({input_filename})', fontsize=16)
 
-        # Plot the second column (Y1) data
-        plt.semilogy(X1_plot, Y1_plot, 'o-', label='QR-version', color='darkblue')
+        # --- Subplot 1: Accuracy (Semilogy Plot) ---
+        
+        # Plot accuracy data using semilogy
+        ax_acc.semilogy(X1_acc_plot, Y1_acc_plot, 'o-', label='QR-version', color='darkblue')
+        ax_acc.semilogy(X2_acc_plot, Y2_acc_plot, 's--', label='RQ-version', color='red')
 
-        # Plot the third column (Y2) data
-        plt.semilogy(X2_plot, Y2_plot, 's--', label='RQ-version', color='red')
+        # Add labels, title, and styling for the accuracy plot
+        ax_acc.set_title('Numerical Accuracy', fontsize=14)
+        ax_acc.set_xlabel('Dimension', fontsize=12)
+        ax_acc.set_ylabel('2-Norm of eigenvalue error vector (Log Scale)', fontsize=12)
+        ax_acc.legend(frameon=True, shadow=True, fontsize=10)
+        ax_acc.grid(True, which="both", ls="--", linewidth=0.5)
 
-        # ----------------------------------------------
-        # 3. Add labels, title, and styling
-        plt.title(f'Numerical Accuracy of Both Methods ({input_filename})', fontsize=16)
-        plt.xlabel('Dimension', fontsize=12)
-        plt.ylabel('2-Norm of eigenvalue errorvector', fontsize=12)
-
-        # Add a legend and grid
-        plt.legend(frameon=True, shadow=True, fontsize=10)
-        plt.grid(True, which="both", ls="--", linewidth=0.5)
-
-        plt.tight_layout()
+        # --- Subplot 2: Execution Time (Linear Plot) ---
+        
+        # Plot execution time data (standard linear plot is appropriate for time)
+        ax_time.plot(X, Y_time_1, 'o-', label='QR-version', color='darkblue')
+        ax_time.plot(X, Y_time_2, 's--', label='RQ-version', color='red')
+        
+        # Add labels, title, and styling for the time plot
+        ax_time.set_title('Execution Time', fontsize=14)
+        ax_time.set_xlabel('Dimension', fontsize=12)
+        ax_time.set_ylabel('Execution Time (ms)', fontsize=12)
+        ax_time.legend(frameon=True, shadow=True, fontsize=10)
+        ax_time.grid(True, which="both", ls="--", linewidth=0.5)
+        
+        # Use tight layout to prevent labels from overlapping
+        plt.tight_layout(rect=[0, 0, 1, 0.96]) # Adjust rect to leave space for suptitle
 
         # Save the plot to the /plots directory
         plt.savefig(output_path)
         print(f"\nPlot successfully saved to {output_path}")
 
     except FileNotFoundError:
-        # This error should ideally be caught in select_data_file, but included for robustness
         print(f"Error: The file '{input_filename}' was not found.")
     except Exception as e:
         print(f"An unexpected error occurred during plotting: {e}")

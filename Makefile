@@ -4,7 +4,7 @@ FC = gfortran
 CXXFLAGS = -O3 -Iinclude -I/usr/include/eigen/
 LDFLAGS = -llapack -lblas
 
-TARGET = dggev3_example
+TARGET = main
 CPP_SOURCES = src/main.cpp src/dggev3_wrapper.cpp src/pencil_generator.cpp src/matrix_utils.cpp
 F_SOURCES = src/dggev3_qr.f src/dggev3_rq.f
 
