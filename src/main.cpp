@@ -1,38 +1,111 @@
 #include "dggev3_wrapper.hpp"
+#include "pencil_generator.hpp"
+#include "matrix_utils.hpp"
+
+#include <Eigen/Dense>
 #include <iostream>
+#include <fstream>
+#include <iomanip>
+#include <filesystem>
+#include <chrono>
+#include <cmath>
+#include <vector>
+#include <complex>
+
+using namespace Eigen;
+using namespace std;
 
 int main()
 {
-    Eigen::Matrix3d A;
-    Eigen::Matrix3d B;
+    namespace fs = std::filesystem;
+    fs::create_directories("results");
 
-    A << 1.0, 1.0, 5.0,
-        1.0, 2.0, 6.0,
-        1.0, 1.0, 3.0;
+    // Timestamped output file
+    auto now = chrono::system_clock::now();
+    time_t now_time = chrono::system_clock::to_time_t(now);
+    tm *local_tm = localtime(&now_time);
 
-    B << 2.0, 4.0, 3.0,
-        1.0, 1.0, 2.0,
-        1.0, 1.0, 1.0;
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", local_tm);
+    string filename = string("results/results_") + timestamp + ".txt";
 
-    std::cout << "=== Using DGGEV3_QR ===\n";
-    auto qr_result = dggev3_qr_wrapper(false, true, A, B);
-
-    if (qr_result.info == 0)
+    ofstream fout(filename);
+    if (!fout.is_open())
     {
-        for (int i = 0; i < A.rows(); ++i)
-            std::cout << "λ" << i << " = (" << qr_result.alphar[i]
-                      << " + " << qr_result.alphai[i]
-                      << "i) / " << qr_result.beta[i] << "\n";
+        cerr << "Failed to open output file: " << filename << "\n";
+        return 1;
     }
 
-    std::cout << "\n=== Using DGGEV3_RQ ===\n";
-    auto rq_result = dggev3_rq_wrapper(false, true, A, B);
+    fout << "# Generalized Eigenvalue Comparison (QR vs RQ)\n";
+    fout << "# Timestamp: " << timestamp << "\n";
+    fout << "# Columns: N, QR_error, RQ_error, QR_time_ms, RQ_time_ms\n\n";
+    fout << std::scientific << std::setprecision(6);
 
-    if (rq_result.info == 0)
+    cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
+    cout << "Writing to " << filename << "\n\n";
+
+    for (int exp = 1; exp <= 11; ++exp) // 2^12 == 4096
     {
-        for (int i = 0; i < A.rows(); ++i)
-            std::cout << "λ" << i << " = (" << rq_result.alphar[i]
-                      << " + " << rq_result.alphai[i]
-                      << "i) / " << rq_result.beta[i] << "\n";
+        int N = 1 << exp;
+
+        // Decide number of trials (average more for smaller matrices)
+        int trials = 10;
+        if (N >= 512)
+            trials = 1;
+
+        double qr_err_sum = 0.0, rq_err_sum = 0.0;
+        double qr_time_sum = 0.0, rq_time_sum = 0.0;
+
+        for (int t = 0; t < trials; ++t)
+        {
+            Pencil pencil = generate_regular_pencil(N);
+
+            // QR method
+            auto t1 = chrono::high_resolution_clock::now();
+            auto qr_res = dggev3_qr_wrapper(false, true, pencil.A, pencil.B);
+            auto t2 = chrono::high_resolution_clock::now();
+            double qr_time = chrono::duration<double, milli>(t2 - t1).count();
+            double qr_err = eigen_error_norm(pencil.eigenvalues,
+                                             qr_res.alphar,
+                                             qr_res.alphai,
+                                             qr_res.beta);
+
+            // RQ method
+            t1 = chrono::high_resolution_clock::now();
+            auto rq_res = dggev3_rq_wrapper(false, true, pencil.A, pencil.B);
+            t2 = chrono::high_resolution_clock::now();
+            double rq_time = chrono::duration<double, milli>(t2 - t1).count();
+            double rq_err = eigen_error_norm(pencil.eigenvalues,
+                                             rq_res.alphar,
+                                             rq_res.alphai,
+                                             rq_res.beta);
+
+            qr_err_sum += qr_err;
+            rq_err_sum += rq_err;
+            qr_time_sum += qr_time;
+            rq_time_sum += rq_time;
+        }
+
+        double qr_err_avg = qr_err_sum / trials;
+        double rq_err_avg = rq_err_sum / trials;
+        double qr_time_avg = qr_time_sum / trials;
+        double rq_time_avg = rq_time_sum / trials;
+
+        fout << setw(5) << N << "  "
+             << setw(14) << qr_err_avg << "  "
+             << setw(14) << rq_err_avg << "  "
+             << setw(14) << qr_time_avg << "  "
+             << setw(14) << rq_time_avg << "\n";
+
+        cout << "N=" << setw(4) << N
+             << " | trials=" << setw(2) << trials
+             << " | QR_err=" << setw(10) << qr_err_avg
+             << " | RQ_err=" << setw(10) << rq_err_avg
+             << " | QR_t=" << setw(8) << qr_time_avg << " ms"
+             << " | RQ_t=" << setw(8) << rq_time_avg << " ms\n";
     }
+
+    fout.close();
+    cout << "\n Finished. Results saved to " << filename << "\n";
+    return 0;
 }
