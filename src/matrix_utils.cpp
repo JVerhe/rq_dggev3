@@ -1,10 +1,12 @@
-#include "matrix_utils.hpp"
+#include <vector>
+#include <complex>
 #include <limits>
 #include <cmath>
 #include <stdexcept>
-#include <complex>
-#include <vector>
 #include <Eigen/Dense>
+#include <iostream>
+
+static constexpr double INF_MISMATCH_PENALTY = 1e16;
 
 double eigen_error_norm(
     const std::vector<std::complex<double>> &reference,
@@ -16,80 +18,157 @@ double eigen_error_norm(
     if (alphar.size() != N || alphai.size() != N || beta.size() != N)
         throw std::invalid_argument("Eigenvalue dimension mismatch in eigen_error_norm.");
 
-    std::vector<std::complex<double>> computed;
-    computed.reserve(N);
+    // Construct computed eigenvalues
+    std::vector<std::complex<double>> computed(N);
     for (int i = 0; i < N; ++i)
     {
         if (beta(i) == 0.0)
         {
-            // True infinite eigenvalue
-            computed.emplace_back(std::numeric_limits<double>::infinity(), 0.0);
+            computed[i] = std::complex<double>(std::numeric_limits<double>::infinity(), 0.0);
         }
         else
         {
-            computed.emplace_back(
-                std::complex<double>(alphar(i), alphai(i)) / beta(i));
+            computed[i] = std::complex<double>(alphar(i), alphai(i)) / beta(i);
         }
     }
 
-    std::vector<std::complex<double>> ref_sorted = reference;
-    auto eigen_sort_key = [](const std::complex<double> &z)
-    {
-        double mag = std::abs(z);
-        double ang = std::arg(z);
-
-        // Fake singular (NaN) should go last
-        if (std::isnan(z.real()) || std::isnan(z.imag()))
-            return std::make_tuple(std::numeric_limits<double>::infinity(),
-                                   std::numeric_limits<double>::infinity());
-
-        // Infinite eigenvalues → magnitude = +∞, angle = ±π (keep consistent)
-        if (std::isinf(z.real()) || std::isinf(z.imag()))
-            return std::make_tuple(std::numeric_limits<double>::infinity(), ang);
-
-        return std::make_tuple(mag, ang);
-    };
-
-    auto cmp = [&](const std::complex<double> &a, const std::complex<double> &b)
-    {
-        return eigen_sort_key(a) < eigen_sort_key(b);
-    };
-
-    std::sort(ref_sorted.begin(), ref_sorted.end(), cmp);
-    std::sort(computed.begin(), computed.end(), cmp);
-
-    double error_sum = 0.0;
-    int valid_count = 0;
-
+    // List of indices for reference entries that are valid (not NaN)
+    std::vector<int> ref_idx;
+    ref_idx.reserve(N);
     for (int i = 0; i < N; ++i)
     {
-        const auto &ref = ref_sorted[i];
-        const auto &comp = computed[i];
-
-        // Fake singular (NaN) on reference -> ignore
-        if (std::isnan(ref.real()) || std::isnan(ref.imag()))
-            continue;
-
-        // Both infinite ->  zero error
-        if (std::isinf(ref.real()) && std::isinf(comp.real()))
-            continue;
-
-        // One infinite, one finite -> heavy penalty
-        if (std::isinf(ref.real()) != std::isinf(comp.real()))
+        const auto &r = reference[i];
+        if (std::isnan(r.real()) || std::isnan(r.imag()))
         {
-            error_sum += 1e6;
-            valid_count++;
+            continue;
+        }
+        ref_idx.push_back(i);
+    }
+    if (ref_idx.empty()) // Only fake eigenvalues
+    {
+        return std::numeric_limits<double>::quiet_NaN(); // nothing to compare
+    }
+
+    auto mag_ang = [&](const std::complex<double> &z)
+    {
+        double m = std::abs(z);
+        double a = std::arg(z);
+        return std::make_pair(m, a);
+    };
+
+    std::sort(ref_idx.begin(), ref_idx.end(), [&](int i, int j)
+              { return mag_ang(reference[i]) < mag_ang(reference[j]); });
+
+    std::vector<char> used(N, 0); // flags for computed entries
+    double error_sum = 0.0;
+    int matched_count = 0;
+
+    for (int ridx : ref_idx) // loop over valid references
+    {
+        const std::complex<double> &r = reference[ridx];
+
+        // Special-case: reference infinite -> try to match an infinite computed first
+        if (std::isinf(r.real()) || std::isinf(r.imag()))
+        {
+            int found_inf = -1;
+            for (int j = 0; j < N; ++j) // loop over computed values
+            {
+                if (used[j])
+                    continue;
+                const auto &c = computed[j];
+                if (std::isinf(c.real()) || std::isinf(c.imag()))
+                {
+                    found_inf = j;
+                    break;
+                }
+            }
+            if (found_inf != -1)
+            {
+                used[found_inf] = 1;
+                // std::cout << "Exact: " << r << " Computed: " << computed[found_inf] << std::endl;
+                matched_count++; // No penalty is added
+                continue;
+            }
+        }
+
+        // General case: find best unused computed index minimizing distance (with infinite handling)
+        int best_j = -1;
+        double best_cost = std::numeric_limits<double>::infinity();
+
+        for (int j = 0; j < N; ++j)
+        {
+            if (used[j])
+                continue;
+            const auto &c = computed[j];
+
+            if (std::isnan(c.real()) || std::isnan(c.imag())) // Safety check, nan normally already filtered
+                continue;
+
+            // If reference finite but computed infinite -> large penalty cost
+            if ((std::isinf(c.real()) || std::isinf(c.imag())) && !(std::isinf(r.real()) || std::isinf(r.imag())))
+            {
+                // express as large constant cost (but allow selection if no better)
+                if (INF_MISMATCH_PENALTY < best_cost)
+                {
+                    best_cost = INF_MISMATCH_PENALTY;
+                    best_j = j;
+                }
+                continue;
+            }
+
+            // If reference infinite but computed finite -> large penalty
+            if ((std::isinf(r.real()) || std::isinf(r.imag())) && !(std::isinf(c.real()) || std::isinf(c.imag())))
+            {
+                if (INF_MISMATCH_PENALTY < best_cost)
+                {
+                    best_cost = INF_MISMATCH_PENALTY;
+                    best_j = j;
+                }
+                continue;
+            }
+
+            // Both finite -> Euclidean distance in complex plane
+            double dist = std::abs(c - r);
+            double cost = dist;
+            if (cost < best_cost)
+            {
+                best_cost = cost;
+                best_j = j;
+            }
+        }
+        if (best_j == -1)
+        {
+            throw std::runtime_error("Couldn't find a match");
+        }
+
+        used[best_j] = 1;
+        const auto &best_c = computed[best_j];
+
+        // infinite-infinite -> no error
+        if ((std::isinf(r.real()) || std::isinf(r.imag())) && (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
+        {
+            std::cout << "Exact: " << r << " Computed: " << best_c << std::endl;
+            matched_count++;
             continue;
         }
 
-        // Both finite → normal error
-        double diff = std::abs(comp - ref);
+        // one infinite, one finite
+        if ((std::isinf(r.real()) || std::isinf(r.imag())) || (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
+        {
+            // std::cout << "Exact: " << r << " Computed: " << best_c << " beta= " << beta[best_j] << std::endl;
+            error_sum += beta[best_j] * beta[best_j]; // squared penalty
+            matched_count++;
+            continue;
+        }
+
+        // Both finite:
+        // std::cout << "Exact: " << r << " Computed: " << best_c << std::endl;
+        double diff = std::abs(best_c - r);
         error_sum += diff * diff;
-        valid_count++;
+        matched_count++;
     }
 
-    if (valid_count == 0)
+    if (matched_count == 0)
         return std::numeric_limits<double>::quiet_NaN();
-
-    return std::sqrt(error_sum / valid_count);
+    return std::sqrt(error_sum / matched_count);
 }

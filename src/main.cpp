@@ -46,11 +46,18 @@ int main()
 
     for (int exp = 2; exp <= 11; ++exp) // 2^11 == 4096
     {
-        int N = 1 << exp;
+        int N = 1 << exp; // = 2^exp
 
-        // Decide number of trials (average more for smaller matrices)
-        int trials = 10;
-        if (N >= 512)
+        int trials = 1e5;
+        if (N >= 16)
+            trials = 1e4;
+        if (N >= 64)
+            trials = 1e3;
+        if (N >= 128)
+            trials = 18;
+        if (N >= 1024)
+            trials = 2;
+        if (N >= 2048)
             trials = 1;
 
         double qr_err_sum = 0.0, rq_err_sum = 0.0;
@@ -58,7 +65,7 @@ int main()
 
         for (int t = 0; t < trials; ++t)
         {
-            Pencil pencil = generate_singular_pencil(N);
+            Pencil pencil = generate_illconditioned_B_pencil(N);
 
             // QR method
             auto t1 = chrono::high_resolution_clock::now();
@@ -69,7 +76,6 @@ int main()
                                              qr_res.alphar,
                                              qr_res.alphai,
                                              qr_res.beta);
-
             // RQ method
             t1 = chrono::high_resolution_clock::now();
             auto rq_res = dggev3_rq_wrapper(false, true, pencil.A, pencil.B);

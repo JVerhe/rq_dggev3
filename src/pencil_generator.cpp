@@ -44,7 +44,7 @@ Pencil generate_regular_pencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generate_singular_diag_pencil(int N)
+Pencil generate_singular_triangular_pencil(int N)
 {
     if (N <= 1)
         throw std::invalid_argument("Matrix dimension N must be at least 2 for a singular pencil.");
@@ -181,4 +181,78 @@ Pencil generate_singular_pencil(int N)
     }
 
     return {A, B, eigvals};
+}
+
+Pencil generate_illconditioned_B_pencil(int N,
+                                        bool use_integer_DA)
+{
+    if (N <= 0)
+        throw std::invalid_argument("N must be positive");
+
+    // Random generator
+    std::mt19937_64 rng(std::random_device{}());
+    std::normal_distribution<double> nd(0.0, 1.0);
+
+    // --- 1) Build diagonal DB = [10^(base_exponent), 10^(base_exponent+1), ...] ---
+    VectorXd diagB(N);
+    for (int i = 0; i < N; ++i)
+    {
+        double exp = -16 * i / (N - 1); // e.g. -16, -15, ...
+        diagB(i) = std::pow(10.0, exp);
+    }
+
+    // --- 2) Build diagonal DA ---
+    VectorXd diagA(N);
+    if (use_integer_DA)
+    {
+        for (int i = 0; i < N; ++i)
+            diagA(i) = static_cast<double>(i + 1);
+    }
+    else
+    {
+        // Optionally you could use random positive values
+        for (int i = 0; i < N; ++i)
+            diagA(i) = std::abs(nd(rng)) + 0.5;
+    }
+
+    MatrixXd DA = diagA.asDiagonal();
+    MatrixXd DB = diagB.asDiagonal();
+
+    MatrixXd R1(N, N), R2(N, N);
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N; ++j)
+        {
+            R1(i, j) = nd(rng);
+            R2(i, j) = nd(rng);
+        }
+
+    HouseholderQR<MatrixXd> qr1(R1);
+    HouseholderQR<MatrixXd> qr2(R2);
+    MatrixXd U = qr1.householderQ() * MatrixXd::Identity(N, N);
+    MatrixXd V = qr2.householderQ() * MatrixXd::Identity(N, N);
+
+    MatrixXd A = U * DA * V.transpose();
+    MatrixXd B = U * DB * V.transpose();
+
+    std::vector<std::complex<double>> eigs;
+    eigs.reserve(N);
+    for (int i = 0; i < N; ++i)
+    {
+        double a = diagA(i);
+        double b = diagB(i);
+        // b should be > 0 here (powers of 10), but guard anyway:
+        if (b == 0.0)
+        {
+            if (a == 0.0)
+                eigs.emplace_back(std::numeric_limits<double>::quiet_NaN(), 0.0);
+            else
+                eigs.emplace_back(std::numeric_limits<double>::infinity(), 0.0);
+        }
+        else
+        {
+            eigs.emplace_back(a / b, 0.0);
+        }
+    }
+
+    return {A, B, eigs};
 }
