@@ -44,7 +44,7 @@ Pencil generate_regular_pencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generate_singular_pencil(int N)
+Pencil generate_singular_diag_pencil(int N)
 {
     if (N <= 1)
         throw std::invalid_argument("Matrix dimension N must be at least 2 for a singular pencil.");
@@ -95,6 +95,88 @@ Pencil generate_singular_pencil(int N)
         else
         {
             eigvals.emplace_back(A(i, i) / B(i, i), 0.0);
+        }
+    }
+
+    return {A, B, eigvals};
+}
+
+Pencil generate_singular_pencil(int N)
+{
+    if (N < 2)
+        throw std::invalid_argument("N must be >= 2");
+
+    std::mt19937 rng(std::random_device{}());
+    std::uniform_real_distribution<> dist_val(0.5, 2.0);
+    std::uniform_int_distribution<> diag_pick(0, N - 1);
+
+    // --- Step 1: Create diagonal DA, DB with singular structure ---
+    Eigen::VectorXd diagA(N), diagB(N);
+
+    for (int i = 0; i < N; i++)
+    {
+        diagA(i) = dist_val(rng);
+        diagB(i) = dist_val(rng);
+    }
+
+    // Force some singularities
+    int k = std::max(1, N / 10);
+
+    for (int i = 0; i < k; i++)
+    {
+        int idx = diag_pick(rng);
+
+        if (rng() & 1)
+        {
+            // produce fake singular (undefined eigenvalue)
+            diagA(idx) = 0.0;
+            diagB(idx) = 0.0;
+        }
+        else
+        {
+            // produce true infinite eigenvalue
+            diagB(idx) = 0.0;
+            // diagA stays random and nonzero
+        }
+    }
+
+    Eigen::MatrixXd DA = diagA.asDiagonal();
+    Eigen::MatrixXd DB = diagB.asDiagonal();
+
+    // --- Step 2: Generate two random orthogonal matrices U, V ---
+    Eigen::MatrixXd R1 = Eigen::MatrixXd::Random(N, N);
+    Eigen::MatrixXd R2 = Eigen::MatrixXd::Random(N, N);
+
+    Eigen::HouseholderQR<Eigen::MatrixXd> qr1(R1);
+    Eigen::HouseholderQR<Eigen::MatrixXd> qr2(R2);
+
+    Eigen::MatrixXd U = qr1.householderQ() * Eigen::MatrixXd::Identity(N, N);
+    Eigen::MatrixXd V = qr2.householderQ() * Eigen::MatrixXd::Identity(N, N);
+
+    // --- Step 3: Construct dense singular A and B ---
+    Eigen::MatrixXd A = U * DA * V.transpose();
+    Eigen::MatrixXd B = U * DB * V.transpose();
+
+    // --- Step 4: Compute reference eigenvalues ---
+    std::vector<std::complex<double>> eigvals;
+    eigvals.reserve(N);
+
+    for (int i = 0; i < N; i++)
+    {
+        double a = diagA(i);
+        double b = diagB(i);
+
+        if (a == 0.0 && b == 0.0)
+        {
+            eigvals.emplace_back(std::numeric_limits<double>::quiet_NaN(), 0.0);
+        }
+        else if (b == 0.0)
+        {
+            eigvals.emplace_back(std::numeric_limits<double>::infinity(), 0.0);
+        }
+        else
+        {
+            eigvals.emplace_back(a / b, 0.0);
         }
     }
 

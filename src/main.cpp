@@ -44,7 +44,7 @@ int main()
     cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
     cout << "Writing to " << filename << "\n\n";
 
-    for (int exp = 2; exp <= 2; ++exp) // 2^11 == 4096
+    for (int exp = 2; exp <= 11; ++exp) // 2^11 == 4096
     {
         int N = 1 << exp;
 

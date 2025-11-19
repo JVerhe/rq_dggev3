@@ -12,13 +12,15 @@ struct Pencil
 
 // Generate a well-conditioned regular pencil
 // A = P * D * Q,  B = P * Q
-// where P and Q are orthogonal (from QR of random matrices)
+// where P and Q are orthogonal
 // and D = diag(1, 2, ..., N)
 Pencil generate_regular_pencil(int N);
 
-Pencil generate_singular_pencil(int N);
+// Generates a singular pencil
+// where A, B are upper-triangular matrices
+// Some random elements on the diagonals have been set to 0
+// Resulting in fake eigs for (aii, bii == 0)
+// And infinite eigs (only bii == 0)
+Pencil generate_singular_diag_pencil(int N);
 
-// (Optional extensions for future)
-// Pencil generate_singular_pencil(int N);
-// Pencil generate_defective_pencil(int N);
-// Pencil generate_complex_pencil(int N);
+Pencil generate_singular_pencil(int N);
