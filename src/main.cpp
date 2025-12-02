@@ -53,19 +53,18 @@ int main()
             trials = 1e4;
         if (N >= 64)
             trials = 1e3;
-        if (N >= 128)
+        if (N >= 256)
             trials = 18;
         if (N >= 1024)
             trials = 2;
         if (N >= 2048)
             trials = 1;
-
         double qr_err_sum = 0.0, rq_err_sum = 0.0;
         double qr_time_sum = 0.0, rq_time_sum = 0.0;
 
         for (int t = 0; t < trials; ++t)
         {
-            Pencil pencil = generate_illconditioned_B_pencil(N);
+            Pencil pencil = generate_singular_pencil(N);
 
             // QR method
             auto t1 = chrono::high_resolution_clock::now();

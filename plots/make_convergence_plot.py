@@ -103,7 +103,7 @@ def generate_plot(file_path):
         fig, (ax_acc, ax_time) = plt.subplots(1, 2, figsize=(16, 6)) 
         
         # Set overall title for the figure
-        fig.suptitle(f'Comparative Analysis: Accuracy and Execution Time ({input_filename})', fontsize=16)
+        fig.suptitle(f'Accuracy and Execution Time ({input_filename})', fontsize=16)
 
         # --- Subplot 1: Accuracy (Semilogy Plot) ---
         
@@ -114,7 +114,7 @@ def generate_plot(file_path):
         # Add labels, title, and styling for the accuracy plot
         ax_acc.set_title('Numerical Accuracy', fontsize=14)
         ax_acc.set_xlabel('Dimension', fontsize=12)
-        ax_acc.set_ylabel('2-Norm of eigenvalue error vector (Log Scale)', fontsize=12)
+        ax_acc.set_ylabel('2-Norm of relative error', fontsize=12)
         ax_acc.legend(frameon=True, shadow=True, fontsize=10)
         ax_acc.grid(True, which="both", ls="--", linewidth=0.5)
 

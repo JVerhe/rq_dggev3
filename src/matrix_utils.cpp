@@ -22,7 +22,7 @@ double eigen_error_norm(
     std::vector<std::complex<double>> computed(N);
     for (int i = 0; i < N; ++i)
     {
-        if (beta(i) == 0.0)
+        if (beta(i) == 0.0) // Tolerance for inifinite vectors?
         {
             computed[i] = std::complex<double>(std::numeric_limits<double>::infinity(), 0.0);
         }
@@ -85,7 +85,6 @@ double eigen_error_norm(
             if (found_inf != -1)
             {
                 used[found_inf] = 1;
-                // std::cout << "Exact: " << r << " Computed: " << computed[found_inf] << std::endl;
                 matched_count++; // No penalty is added
                 continue;
             }
@@ -128,7 +127,7 @@ double eigen_error_norm(
             }
 
             // Both finite -> Euclidean distance in complex plane
-            double dist = std::abs(c - r);
+            double dist = std::abs((c - r) / r);
             double cost = dist;
             if (cost < best_cost)
             {
@@ -147,7 +146,6 @@ double eigen_error_norm(
         // infinite-infinite -> no error
         if ((std::isinf(r.real()) || std::isinf(r.imag())) && (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
         {
-            std::cout << "Exact: " << r << " Computed: " << best_c << std::endl;
             matched_count++;
             continue;
         }
@@ -155,15 +153,14 @@ double eigen_error_norm(
         // one infinite, one finite
         if ((std::isinf(r.real()) || std::isinf(r.imag())) || (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
         {
-            // std::cout << "Exact: " << r << " Computed: " << best_c << " beta= " << beta[best_j] << std::endl;
             error_sum += beta[best_j] * beta[best_j]; // squared penalty
             matched_count++;
             continue;
         }
 
         // Both finite:
-        // std::cout << "Exact: " << r << " Computed: " << best_c << std::endl;
-        double diff = std::abs(best_c - r);
+        double diff = std::abs((best_c - r) / r);
+        std::cout << "Exact: " << r << " Computed: " << best_c << "Relative error: " << diff << std::endl;
         error_sum += diff * diff;
         matched_count++;
     }

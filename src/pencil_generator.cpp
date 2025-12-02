@@ -110,7 +110,7 @@ Pencil generate_singular_pencil(int N)
     std::uniform_real_distribution<> dist_val(0.5, 2.0);
     std::uniform_int_distribution<> diag_pick(0, N - 1);
 
-    // --- Step 1: Create diagonal DA, DB with singular structure ---
+    // Create diagonal DA, DB with singular structure
     Eigen::VectorXd diagA(N), diagB(N);
 
     for (int i = 0; i < N; i++)
@@ -132,18 +132,17 @@ Pencil generate_singular_pencil(int N)
             diagA(idx) = 0.0;
             diagB(idx) = 0.0;
         }
-        else
-        {
-            // produce true infinite eigenvalue
-            diagB(idx) = 0.0;
-            // diagA stays random and nonzero
-        }
+        // else
+        // {
+        //     // produce true infinite eigenvalue
+        //     diagB(idx) = 0.0;
+        //     // diagA stays random and nonzero
+        // }
     }
 
     Eigen::MatrixXd DA = diagA.asDiagonal();
     Eigen::MatrixXd DB = diagB.asDiagonal();
 
-    // --- Step 2: Generate two random orthogonal matrices U, V ---
     Eigen::MatrixXd R1 = Eigen::MatrixXd::Random(N, N);
     Eigen::MatrixXd R2 = Eigen::MatrixXd::Random(N, N);
 
@@ -153,11 +152,10 @@ Pencil generate_singular_pencil(int N)
     Eigen::MatrixXd U = qr1.householderQ() * Eigen::MatrixXd::Identity(N, N);
     Eigen::MatrixXd V = qr2.householderQ() * Eigen::MatrixXd::Identity(N, N);
 
-    // --- Step 3: Construct dense singular A and B ---
     Eigen::MatrixXd A = U * DA * V.transpose();
     Eigen::MatrixXd B = U * DB * V.transpose();
 
-    // --- Step 4: Compute reference eigenvalues ---
+    // Compute reference eigenvalues
     std::vector<std::complex<double>> eigvals;
     eigvals.reserve(N);
 
@@ -189,19 +187,17 @@ Pencil generate_illconditioned_B_pencil(int N,
     if (N <= 0)
         throw std::invalid_argument("N must be positive");
 
-    // Random generator
     std::mt19937_64 rng(std::random_device{}());
     std::normal_distribution<double> nd(0.0, 1.0);
 
-    // --- 1) Build diagonal DB = [10^(base_exponent), 10^(base_exponent+1), ...] ---
     VectorXd diagB(N);
     for (int i = 0; i < N; ++i)
     {
-        double exp = -16 * i / (N - 1); // e.g. -16, -15, ...
+        double exp = -16 * i / (N - 1); // e.g. 0, ..., -16
         diagB(i) = std::pow(10.0, exp);
     }
 
-    // --- 2) Build diagonal DA ---
+    // Build diagonal DA
     VectorXd diagA(N);
     if (use_integer_DA)
     {
