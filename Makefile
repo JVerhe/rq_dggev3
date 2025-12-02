@@ -22,3 +22,4 @@ src/%.o: src/%.f
 
 clean:
 	rm -f $(CPP_OBJECTS) $(F_OBJECTS) $(TARGET)
+	rm -f results/*.txt plots/*.png

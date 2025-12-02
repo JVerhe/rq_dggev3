@@ -101,7 +101,7 @@ Pencil generate_singular_triangular_pencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generate_singular_pencil(int N)
+Pencil generate_singular_pencil(int N, bool infEigvals)
 {
     if (N < 2)
         throw std::invalid_argument("N must be >= 2");
@@ -126,18 +126,17 @@ Pencil generate_singular_pencil(int N)
     {
         int idx = diag_pick(rng);
 
-        if (rng() & 1)
+        if (!infEigvals || (infEigvals && (rng() & 1)))
         {
             // produce fake singular (undefined eigenvalue)
             diagA(idx) = 0.0;
             diagB(idx) = 0.0;
         }
-        // else
-        // {
-        //     // produce true infinite eigenvalue
-        //     diagB(idx) = 0.0;
-        //     // diagA stays random and nonzero
-        // }
+        else
+        {
+            // produce true infinite eigenvalue
+            diagB(idx) = 0.0;
+        }
     }
 
     Eigen::MatrixXd DA = diagA.asDiagonal();

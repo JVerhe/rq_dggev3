@@ -23,7 +23,7 @@ Pencil generate_regular_pencil(int N);
 // And infinite eigs (only bii == 0)
 Pencil generate_singular_triangular_pencil(int N);
 
-Pencil generate_singular_pencil(int N);
+Pencil generate_singular_pencil(int N, bool infEigvals = false);
 
 Pencil generate_illconditioned_B_pencil(int N,
                                         bool use_integer_DA = true);

@@ -8,6 +8,16 @@
 
 static constexpr double INF_MISMATCH_PENALTY = 1e16;
 
+bool isComplexInf(const std::complex<double> &z)
+{
+    return std::isinf(z.real()) || std::isinf(z.imag());
+}
+
+bool isComplexFinite(const std::complex<double> &z)
+{
+    return std::isfinite(z.real()) || std::isfinite(z.imag());
+}
+
 double eigen_error_norm(
     const std::vector<std::complex<double>> &reference,
     const Eigen::VectorXd &alphar,
@@ -144,23 +154,32 @@ double eigen_error_norm(
         const auto &best_c = computed[best_j];
 
         // infinite-infinite -> no error
-        if ((std::isinf(r.real()) || std::isinf(r.imag())) && (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
+        if (isComplexInf(r) && isComplexInf(best_c))
         {
             matched_count++;
             continue;
         }
 
-        // one infinite, one finite
-        if ((std::isinf(r.real()) || std::isinf(r.imag())) || (std::isinf(best_c.real()) || std::isinf(best_c.imag())))
+        // Reference Finite, computed is infinite
+        if (isComplexFinite(r) && isComplexInf(best_c))
         {
-            error_sum += beta[best_j] * beta[best_j]; // squared penalty
+            double squared_penalty = beta[best_j] * beta[best_j] / (alphar[best_j] * alphar[best_j]);
+            error_sum += squared_penalty;
+            matched_count++;
+            continue;
+        }
+
+        // Reference Infintie, computed finite
+        if (isComplexInf(r) && isComplexFinite(best_c))
+        {
+            double squared_penalty = beta[best_j] * beta[best_j] / (alphar[best_j] * alphar[best_j]);
+            error_sum += squared_penalty;
             matched_count++;
             continue;
         }
 
         // Both finite:
         double diff = std::abs((best_c - r) / r);
-        std::cout << "Exact: " << r << " Computed: " << best_c << "Relative error: " << diff << std::endl;
         error_sum += diff * diff;
         matched_count++;
     }

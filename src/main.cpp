@@ -44,9 +44,10 @@ int main()
     cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
     cout << "Writing to " << filename << "\n\n";
 
-    for (int exp = 2; exp <= 11; ++exp) // 2^11 == 4096
+    // for (int exp = 2; exp <= 11; ++exp) // 2^11 == 4096
+    for (int N = 4; N <= 200; N = N + 4)
     {
-        int N = 1 << exp; // = 2^exp
+        // int N = 1 << exp; // = 2^exp
 
         int trials = 1e5;
         if (N >= 16)
@@ -59,6 +60,7 @@ int main()
             trials = 2;
         if (N >= 2048)
             trials = 1;
+
         double qr_err_sum = 0.0, rq_err_sum = 0.0;
         double qr_time_sum = 0.0, rq_time_sum = 0.0;
 
