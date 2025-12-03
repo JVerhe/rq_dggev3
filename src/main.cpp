@@ -11,11 +11,50 @@
 #include <cmath>
 #include <vector>
 #include <complex>
+#include <functional>
 
 using namespace Eigen;
 using namespace std;
 
-int main()
+// Define function pointer type for pencil generators:
+using PencilGenerator = std::function<Pencil(int)>;
+
+// Forward declaration
+int runBenchmark(PencilGenerator pencilGenerate);
+
+int main(int argc, char *argv[])
+{
+    if (argc < 2)
+    {
+        cerr << "Usage: ./main <pencil_type>\n"
+             << " 1 = random singular\n"
+             << " 2 = triangular singular\n"
+             << " 3 = logspace singular\n"
+             << " 4 = regular\n";
+        return 1;
+    }
+
+    std::string arg = argv[1];
+    PencilGenerator pencilGenerate;
+
+    if (arg == "1")
+        pencilGenerate = generateRandomSingularPencil;
+    else if (arg == "2")
+        pencilGenerate = generateSingularTriangularPencil;
+    else if (arg == "3")
+        pencilGenerate = generateLogspaceSingularPencil;
+    else if (arg == "4")
+        pencilGenerate = generateRegularPencil;
+    else
+    {
+        cerr << "Unknown pencil type '" << arg << "'.\n";
+        return 1;
+    }
+
+    return runBenchmark(pencilGenerate);
+}
+
+int runBenchmark(PencilGenerator pencilGenerate)
 {
     namespace fs = std::filesystem;
     fs::create_directories("results");
@@ -44,16 +83,16 @@ int main()
     cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
     cout << "Writing to " << filename << "\n\n";
 
-    // for (int exp = 2; exp <= 11; ++exp) // 2^11 == 4096
-    for (int N = 4; N <= 200; N = N + 4)
+    // Loop over matrix sizes
+    for (int N = 8; N <= 210; N += 6)
     {
-        // int N = 1 << exp; // = 2^exp
-
         int trials = 1e5;
         if (N >= 16)
             trials = 1e4;
         if (N >= 64)
-            trials = 1e3;
+            trials = 500;
+        if (N >= 128)
+            trials = 50;
         if (N >= 256)
             trials = 18;
         if (N >= 1024)
@@ -66,26 +105,29 @@ int main()
 
         for (int t = 0; t < trials; ++t)
         {
-            Pencil pencil = generate_singular_pencil(N);
+            Pencil pencil = pencilGenerate(N);
 
             // QR method
             auto t1 = chrono::high_resolution_clock::now();
             auto qr_res = dggev3_qr_wrapper(false, true, pencil.A, pencil.B);
             auto t2 = chrono::high_resolution_clock::now();
             double qr_time = chrono::duration<double, milli>(t2 - t1).count();
-            double qr_err = eigen_error_norm(pencil.eigenvalues,
-                                             qr_res.alphar,
-                                             qr_res.alphai,
-                                             qr_res.beta);
+
+            double qr_err = eigErrorNorm(pencil.eigenvalues,
+                                         qr_res.alphar,
+                                         qr_res.alphai,
+                                         qr_res.beta);
+
             // RQ method
             t1 = chrono::high_resolution_clock::now();
             auto rq_res = dggev3_rq_wrapper(false, true, pencil.A, pencil.B);
             t2 = chrono::high_resolution_clock::now();
             double rq_time = chrono::duration<double, milli>(t2 - t1).count();
-            double rq_err = eigen_error_norm(pencil.eigenvalues,
-                                             rq_res.alphar,
-                                             rq_res.alphai,
-                                             rq_res.beta);
+
+            double rq_err = eigErrorNorm(pencil.eigenvalues,
+                                         rq_res.alphar,
+                                         rq_res.alphai,
+                                         rq_res.beta);
 
             qr_err_sum += qr_err;
             rq_err_sum += rq_err;
@@ -105,7 +147,7 @@ int main()
              << setw(14) << rq_time_avg << "\n";
 
         cout << "N=" << setw(4) << N
-             << " | trials=" << setw(2) << trials
+             << " | trials=" << setw(5) << trials
              << " | QR_err=" << setw(10) << qr_err_avg
              << " | RQ_err=" << setw(10) << rq_err_avg
              << " | QR_t=" << setw(8) << qr_time_avg << " ms"
@@ -113,6 +155,6 @@ int main()
     }
 
     fout.close();
-    cout << "\n Finished. Results saved to " << filename << "\n";
+    cout << "\nFinished. Results saved to " << filename << "\n";
     return 0;
 }

@@ -18,7 +18,7 @@ bool isComplexFinite(const std::complex<double> &z)
     return std::isfinite(z.real()) || std::isfinite(z.imag());
 }
 
-double eigen_error_norm(
+double eigErrorNorm(
     const std::vector<std::complex<double>> &reference,
     const Eigen::VectorXd &alphar,
     const Eigen::VectorXd &alphai,
@@ -114,7 +114,7 @@ double eigen_error_norm(
                 continue;
 
             // If reference finite but computed infinite -> large penalty cost
-            if ((std::isinf(c.real()) || std::isinf(c.imag())) && !(std::isinf(r.real()) || std::isinf(r.imag())))
+            if ((isComplexInf(c)) && (isComplexFinite(r)))
             {
                 // express as large constant cost (but allow selection if no better)
                 if (INF_MISMATCH_PENALTY < best_cost)
@@ -126,7 +126,7 @@ double eigen_error_norm(
             }
 
             // If reference infinite but computed finite -> large penalty
-            if ((std::isinf(r.real()) || std::isinf(r.imag())) && !(std::isinf(c.real()) || std::isinf(c.imag())))
+            if (isComplexInf(r) && isComplexFinite(c))
             {
                 if (INF_MISMATCH_PENALTY < best_cost)
                 {
@@ -136,7 +136,6 @@ double eigen_error_norm(
                 continue;
             }
 
-            // Both finite -> Euclidean distance in complex plane
             double dist = std::abs((c - r) / r);
             double cost = dist;
             if (cost < best_cost)
@@ -163,7 +162,15 @@ double eigen_error_norm(
         // Reference Finite, computed is infinite
         if (isComplexFinite(r) && isComplexInf(best_c))
         {
-            double squared_penalty = beta[best_j] * beta[best_j] / (alphar[best_j] * alphar[best_j]);
+            double squared_penalty = 0.0;
+            if (alphar[best_j] != 0.0)
+            {
+                squared_penalty = (r * r).real() / (alphar[best_j] * alphar[best_j]);
+            }
+            else
+            {
+                squared_penalty = (r * r).real();
+            }
             error_sum += squared_penalty;
             matched_count++;
             continue;
@@ -179,12 +186,30 @@ double eigen_error_norm(
         }
 
         // Both finite:
-        double diff = std::abs((best_c - r) / r);
-        error_sum += diff * diff;
+        double penalty = std::abs((best_c - r) / r);
+        error_sum += penalty * penalty;
         matched_count++;
     }
 
     if (matched_count == 0)
         return std::numeric_limits<double>::quiet_NaN();
-    return std::sqrt(error_sum / matched_count);
+
+    return std::sqrt(error_sum);
+}
+
+double invEigenErrorNorm(const std::vector<std::complex<double>> &reference,
+                         const Eigen::VectorXd &alphar,
+                         const Eigen::VectorXd &alphai,
+                         const Eigen::VectorXd &beta)
+{
+    // Calculate inverse of eigs
+    std::vector<std::complex<double>> inv_ref;
+    inv_ref.reserve(reference.size());
+    for (const auto &z : reference)
+    {
+        inv_ref.push_back(1.0 / z);
+    }
+
+    // for now, all eigenvalues are real -> switch beta and alpha_r
+    return eigErrorNorm(inv_ref, beta, alphai, alphar);
 }

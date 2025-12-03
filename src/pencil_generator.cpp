@@ -7,7 +7,7 @@
 
 using namespace Eigen;
 
-Pencil generate_regular_pencil(int N)
+Pencil generateRegularPencil(int N)
 {
     if (N <= 0)
         throw std::invalid_argument("Matrix dimension N must be positive");
@@ -44,7 +44,7 @@ Pencil generate_regular_pencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generate_singular_triangular_pencil(int N)
+Pencil generateSingularTriangularPencil(int N)
 {
     if (N <= 1)
         throw std::invalid_argument("Matrix dimension N must be at least 2 for a singular pencil.");
@@ -76,7 +76,7 @@ Pencil generate_singular_triangular_pencil(int N)
         B(idx, idx) = 0.0;
     }
 
-    // Compute “exact” eigenvalues
+    // Compute exact eigenvalues
     std::vector<std::complex<double>> eigvals;
     eigvals.reserve(N);
 
@@ -101,7 +101,7 @@ Pencil generate_singular_triangular_pencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generate_singular_pencil(int N, bool infEigvals)
+Pencil generateRandomSingularPencil(int N)
 {
     if (N < 2)
         throw std::invalid_argument("N must be >= 2");
@@ -126,17 +126,9 @@ Pencil generate_singular_pencil(int N, bool infEigvals)
     {
         int idx = diag_pick(rng);
 
-        if (!infEigvals || (infEigvals && (rng() & 1)))
-        {
-            // produce fake singular (undefined eigenvalue)
-            diagA(idx) = 0.0;
-            diagB(idx) = 0.0;
-        }
-        else
-        {
-            // produce true infinite eigenvalue
-            diagB(idx) = 0.0;
-        }
+        // produce fake singular (undefined eigenvalue)
+        diagA(idx) = 0.0;
+        diagB(idx) = 0.0;
     }
 
     Eigen::MatrixXd DA = diagA.asDiagonal();
@@ -180,8 +172,7 @@ Pencil generate_singular_pencil(int N, bool infEigvals)
     return {A, B, eigvals};
 }
 
-Pencil generate_illconditioned_B_pencil(int N,
-                                        bool use_integer_DA)
+Pencil generateLogspaceSingularPencil(int N)
 {
     if (N <= 0)
         throw std::invalid_argument("N must be positive");
@@ -198,17 +189,9 @@ Pencil generate_illconditioned_B_pencil(int N,
 
     // Build diagonal DA
     VectorXd diagA(N);
-    if (use_integer_DA)
-    {
-        for (int i = 0; i < N; ++i)
-            diagA(i) = static_cast<double>(i + 1);
-    }
-    else
-    {
-        // Optionally you could use random positive values
-        for (int i = 0; i < N; ++i)
-            diagA(i) = std::abs(nd(rng)) + 0.5;
-    }
+    // Optionally you could use random positive values
+    for (int i = 0; i < N; ++i)
+        diagA(i) = std::abs(nd(rng)) + 0.5;
 
     MatrixXd DA = diagA.asDiagonal();
     MatrixXd DB = diagB.asDiagonal();

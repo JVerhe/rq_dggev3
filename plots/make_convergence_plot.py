@@ -114,7 +114,7 @@ def generate_plot(file_path):
         # Add labels, title, and styling for the accuracy plot
         ax_acc.set_title('Numerical Accuracy', fontsize=14)
         ax_acc.set_xlabel('Dimension', fontsize=12)
-        ax_acc.set_ylabel('2-Norm of relative error', fontsize=12)
+        ax_acc.set_ylabel('2-Norm of relative error (inverse eigenvalues)', fontsize=12)
         ax_acc.legend(frameon=True, shadow=True, fontsize=10)
         ax_acc.grid(True, which="both", ls="--", linewidth=0.5)
 
