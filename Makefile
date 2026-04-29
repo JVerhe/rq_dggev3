@@ -1,7 +1,7 @@
 CXX = g++
 FC = gfortran
 
-CXXFLAGS = -O3 -Iinclude -I/usr/include/eigen/
+CXXFLAGS = -O3 -Iinclude -I/usr/include/eigen3/
 LDFLAGS = -llapack -lblas
 
 TARGET = main

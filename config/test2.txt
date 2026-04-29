@@ -1,0 +1,5 @@
+# Core Settings
+task = error_variance
+pencil_type = 1
+size = 50
+trials = 12

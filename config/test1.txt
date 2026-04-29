@@ -1,0 +1,18 @@
+# Core Settings
+task = runBenchmark
+pencil_type = 1
+
+# Benchmark Loop Parameters
+range_start = 8
+range_end = 210
+range_step = 6
+
+# Number of trials per size of pencil
+[trial_limits]
+0 10
+16 20
+64 50
+128 5
+256 1
+1024 1
+2048 1
