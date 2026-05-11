@@ -70,10 +70,11 @@ Lines that start with "#" are ignored by the program.
 
 * `task`: determines the current task
 * `pencil_type`: selects the type of generated matrix pencil
-  * `1` Random Singular
-  * `2` Triangular Singular
-  * `3` Logspace Singular (ill-posed)
-  * `4` Random Regular
+  * `1` Random Regular
+  * `2` Random Singular
+  * `3` Triangular Singular
+  * `4` Logspace Regular (small eigenvalues + ill-posed)
+  * `5` Logspace Regular (large eigenvalues + ill-posed)
 * `range_start, range_end, range_step`: define the step conditions for the size of the tested pencils
 * `[trial limits]`: determines the number of trials for each size of matrix
   * `[Matrix Size Threshold]`: minimum matrix size

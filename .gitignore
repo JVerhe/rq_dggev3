@@ -2,4 +2,5 @@
 main
 src/*.o
 results/*.txt
+config/*.txt
 plots/*.png

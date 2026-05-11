@@ -25,4 +25,6 @@ Pencil generateSingularTriangularPencil(int N);
 
 Pencil generateRandomSingularPencil(int N);
 
-Pencil generateLogspaceSingularPencil(int N);
+Pencil generateBLogspaceSingularPencil(int N);
+
+Pencil generateALogspaceSingularPencil(int N);

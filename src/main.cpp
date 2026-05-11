@@ -89,8 +89,9 @@ public:
     }
 };
 
-int runBenchmark(PencilGenerator pencilGenerate, const ConfigParser& cfg);
-int errorVariance(PencilGenerator pencilGenerate, const ConfigParser& cfg);
+int runBenchmarkRMSD(PencilGenerator pencilGenerate, const ConfigParser& cfg);
+int runBenchmarkMREL(PencilGenerator pencilGenerate, const ConfigParser& cfg);
+int errorDistribution(PencilGenerator pencilGenerate, const ConfigParser& cfg);
 
 int main(int argc, char *argv[])
 {
@@ -112,13 +113,15 @@ int main(int argc, char *argv[])
     PencilGenerator pencilGenerate;
 
     if (pencil_type == "1")
-        pencilGenerate = generateRandomSingularPencil;
-    else if (pencil_type == "2")
-        pencilGenerate = generateSingularTriangularPencil;
-    else if (pencil_type == "3")
-        pencilGenerate = generateLogspaceSingularPencil;
-    else if (pencil_type == "4")
         pencilGenerate = generateRegularPencil;
+    else if (pencil_type == "2")
+        pencilGenerate = generateRandomSingularPencil;
+    else if (pencil_type == "3")
+        pencilGenerate = generateSingularTriangularPencil;
+    else if (pencil_type == "4")
+        pencilGenerate = generateALogspaceSingularPencil;
+    else if (pencil_type == "5")
+        pencilGenerate = generateBLogspaceSingularPencil;
     else
     {
         cerr << "Unknown pencil type '" << pencil_type << "'.\n";
@@ -126,10 +129,12 @@ int main(int argc, char *argv[])
     }
 
     // Route task based on config file
-    if (task_name == "runBenchmark") {
-        return runBenchmark(pencilGenerate, cfg);
+    if (task_name == "runRMSD") {
+        return runBenchmarkRMSD(pencilGenerate, cfg);
+    } else if (task_name == "runMREL") {
+        return runBenchmarkMREL(pencilGenerate, cfg);
     } else if (task_name == "error_variance") {
-        return errorVariance(pencilGenerate, cfg);
+        return errorDistribution(pencilGenerate, cfg);
     } else {
         cerr << "Unknown task '" << task_name << "'.\n";
         return 1;
@@ -137,7 +142,7 @@ int main(int argc, char *argv[])
 }
 
 
-int errorVariance(PencilGenerator pencilGenerate, const ConfigParser& cfg)
+int errorDistribution(PencilGenerator pencilGenerate, const ConfigParser& cfg)
 {
     namespace fs = std::filesystem;
     fs::create_directories("results");
@@ -151,7 +156,7 @@ int errorVariance(PencilGenerator pencilGenerate, const ConfigParser& cfg)
 
     char timestamp[64];
     strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", local_tm);
-    string filename = string("results/variance_") + timestamp + ".txt";
+    string filename = string("results/distribution_") + timestamp + ".txt";
 
     ofstream fout(filename);
     if (!fout.is_open())
@@ -179,22 +184,22 @@ int errorVariance(PencilGenerator pencilGenerate, const ConfigParser& cfg)
 
         // QR method
         auto t1 = chrono::high_resolution_clock::now();
-        auto qr_res = dggev3_qr_wrapper(false, true, pencil.A, pencil.B);
+        auto qr_res = dggev3_qr_wrapper(true, true, pencil.A, pencil.B);
         auto t2 = chrono::high_resolution_clock::now();
         double qr_time = chrono::duration<double, milli>(t2 - t1).count();
 
-        double qr_err = eigErrorNorm(pencil.eigenvalues,
+        double qr_err = RMSD(pencil.eigenvalues,
                                      qr_res.alphar,
                                      qr_res.alphai,
                                      qr_res.beta);
 
         // RQ method
         t1 = chrono::high_resolution_clock::now();
-        auto rq_res = dggev3_rq_wrapper(false, true, pencil.A, pencil.B);
+        auto rq_res = dggev3_rq_wrapper(true, true, pencil.A, pencil.B);
         t2 = chrono::high_resolution_clock::now();
         double rq_time = chrono::duration<double, milli>(t2 - t1).count();
 
-        double rq_err = eigErrorNorm(pencil.eigenvalues,
+        double rq_err = RMSD(pencil.eigenvalues,
                                      rq_res.alphar,
                                      rq_res.alphai,
                                      rq_res.beta);
@@ -216,7 +221,7 @@ int errorVariance(PencilGenerator pencilGenerate, const ConfigParser& cfg)
     return 0;
 }
 
-int runBenchmark(PencilGenerator pencilGenerate, const ConfigParser& cfg)
+int runBenchmarkRMSD(PencilGenerator pencilGenerate, const ConfigParser& cfg)
 {
     namespace fs = std::filesystem;
     fs::create_directories("results");
@@ -243,7 +248,7 @@ int runBenchmark(PencilGenerator pencilGenerate, const ConfigParser& cfg)
 
     char timestamp[64];
     strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", local_tm);
-    string filename = string("results/results_") + timestamp + ".txt";
+    string filename = string("results/RMSD_") + timestamp + ".txt";
 
     ofstream fout(filename);
     if (!fout.is_open())
@@ -252,7 +257,7 @@ int runBenchmark(PencilGenerator pencilGenerate, const ConfigParser& cfg)
         return 1;
     }
 
-    fout << "# Generalized Eigenvalue Comparison (QR vs RQ)\n";
+    fout << "# Generalized Eigenvalue Comparison RMSD (QR vs RQ)\n";
     fout << "# Timestamp: " << timestamp << "\n";
     fout << "# Task: " << cfg.getString("task") << " | Pencil Type: " << cfg.getString("pencil_type") << "\n";
     fout << "# Columns: N, QR_error, RQ_error, QR_time_ms, RQ_time_ms\n\n";
@@ -278,21 +283,132 @@ int runBenchmark(PencilGenerator pencilGenerate, const ConfigParser& cfg)
             Pencil pencil = pencilGenerate(N);
 
             auto t1 = chrono::high_resolution_clock::now();
-            auto qr_res = dggev3_qr_wrapper(false, true, pencil.A, pencil.B);
+            auto qr_res = dggev3_qr_wrapper(true, true, pencil.A, pencil.B);
             auto t2 = chrono::high_resolution_clock::now();
             double qr_time = chrono::duration<double, milli>(t2 - t1).count();
 
-            double qr_err = eigErrorNorm(pencil.eigenvalues,
+            double qr_err = RMSD(pencil.eigenvalues,
                                          qr_res.alphar,
                                          qr_res.alphai,
                                          qr_res.beta);
 
             t1 = chrono::high_resolution_clock::now();
-            auto rq_res = dggev3_rq_wrapper(false, true, pencil.A, pencil.B);
+            auto rq_res = dggev3_rq_wrapper(true, true, pencil.A, pencil.B);
             t2 = chrono::high_resolution_clock::now();
             double rq_time = chrono::duration<double, milli>(t2 - t1).count();
 
-            double rq_err = eigErrorNorm(pencil.eigenvalues,
+            double rq_err = RMSD(pencil.eigenvalues,
+                                         rq_res.alphar,
+                                         rq_res.alphai,
+                                         rq_res.beta);
+
+            qr_err_sum += qr_err;
+            rq_err_sum += rq_err;
+            qr_time_sum += qr_time;
+            rq_time_sum += rq_time;
+        }
+
+        double qr_err_avg = qr_err_sum / trials;
+        double rq_err_avg = rq_err_sum / trials;
+        double qr_time_avg = qr_time_sum / trials;
+        double rq_time_avg = rq_time_sum / trials;
+
+        fout << setw(5) << N << "  "
+             << setw(14) << qr_err_avg << "  "
+             << setw(14) << rq_err_avg << "  "
+             << setw(14) << qr_time_avg << "  "
+             << setw(14) << rq_time_avg << "\n";
+
+        cout << "N=" << setw(4) << N
+             << " | trials=" << setw(5) << trials
+             << " | QR_err=" << setw(10) << qr_err_avg
+             << " | RQ_err=" << setw(10) << rq_err_avg
+             << " | QR_t=" << setw(8) << qr_time_avg << " ms"
+             << " | RQ_t=" << setw(8) << rq_time_avg << " ms\n";
+    }
+
+    fout.close();
+    cout << "\nFinished. Results saved to " << filename << "\n";
+    return 0;
+}
+
+int runBenchmarkMREL(PencilGenerator pencilGenerate, const ConfigParser& cfg)
+{
+    namespace fs = std::filesystem;
+    fs::create_directories("results");
+
+    int start_N = cfg.get<int>("range_start", 8);
+    int end_N   = cfg.get<int>("range_end", 210);
+    int step_N  = cfg.get<int>("range_step", 6);
+
+    vector<pair<int, int>> trial_limits;
+    if (cfg.blocks.count("trial_limits")) {
+        for (const auto& row : cfg.blocks.at("trial_limits")) {
+            if (row.size() >= 2) {
+                int threshold = stoi(row[0]);
+                int trials = static_cast<int>(stod(row[1]));
+                trial_limits.push_back({threshold, trials});
+            }
+        }
+        sort(trial_limits.begin(), trial_limits.end());
+    }
+
+    auto now = chrono::system_clock::now();
+    time_t now_time = chrono::system_clock::to_time_t(now);
+    tm *local_tm = localtime(&now_time);
+
+    char timestamp[64];
+    strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", local_tm);
+    string filename = string("results/MREL_") + timestamp + ".txt";
+
+    ofstream fout(filename);
+    if (!fout.is_open())
+    {
+        cerr << "Failed to open output file: " << filename << "\n";
+        return 1;
+    }
+
+    fout << "# Generalized Eigenvalue Comparison MREL (QR vs RQ)\n";
+    fout << "# Timestamp: " << timestamp << "\n";
+    fout << "# Task: " << cfg.getString("task") << " | Pencil Type: " << cfg.getString("pencil_type") << "\n";
+    fout << "# Columns: N, QR_error, RQ_error, QR_time_ms, RQ_time_ms\n\n";
+    fout << scientific << setprecision(6);
+
+    cout << "Benchmarking dggev3_qr vs dggev3_rq ...\n";
+    cout << "Writing to " << filename << "\n\n";
+
+    for (int N = start_N; N <= end_N; N += step_N)
+    {
+        int trials = 1; 
+        for (const auto& limit : trial_limits) {
+            if (N >= limit.first) {
+                trials = limit.second;
+            }
+        }
+
+        double qr_err_sum = 0.0, rq_err_sum = 0.0;
+        double qr_time_sum = 0.0, rq_time_sum = 0.0;
+
+        for (int t = 0; t < trials; ++t)
+        {
+            Pencil pencil = pencilGenerate(N);
+
+            auto t1 = chrono::high_resolution_clock::now();
+            auto qr_res = dggev3_qr_wrapper(true, true, pencil.A, pencil.B);
+            auto t2 = chrono::high_resolution_clock::now();
+            double qr_time = chrono::duration<double, milli>(t2 - t1).count();
+
+            double qr_err = MREL(pencil.eigenvalues,
+                                         qr_res.alphar,
+                                         qr_res.alphai,
+                                         qr_res.beta);
+
+            t1 = chrono::high_resolution_clock::now();
+            auto rq_res = dggev3_rq_wrapper(true, true, pencil.A, pencil.B);
+            t2 = chrono::high_resolution_clock::now();
+            double rq_time = chrono::duration<double, milli>(t2 - t1).count();
+
+            double rq_err = MREL(pencil.eigenvalues,
                                          rq_res.alphar,
                                          rq_res.alphai,
                                          rq_res.beta);

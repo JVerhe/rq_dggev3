@@ -18,7 +18,7 @@ bool isComplexFinite(const std::complex<double> &z)
     return std::isfinite(z.real()) || std::isfinite(z.imag());
 }
 
-double eigErrorNorm(
+double RMSD(
     const std::vector<std::complex<double>> &reference,
     const Eigen::VectorXd &alphar,
     const Eigen::VectorXd &alphai,
@@ -32,7 +32,7 @@ double eigErrorNorm(
     std::vector<std::complex<double>> computed(N);
     for (int i = 0; i < N; ++i)
     {
-        if (beta(i) == 0.0) // Tolerance for inifinite vectors?
+        if (beta(i) <= 1e-16)
         {
             computed[i] = std::complex<double>(std::numeric_limits<double>::infinity(), 0.0);
         }
@@ -100,7 +100,6 @@ double eigErrorNorm(
             }
         }
 
-        // General case: find best unused computed index minimizing distance (with infinite handling)
         int best_j = -1;
         double best_cost = std::numeric_limits<double>::infinity();
 
@@ -113,10 +112,9 @@ double eigErrorNorm(
             if (std::isnan(c.real()) || std::isnan(c.imag())) // Safety check, nan normally already filtered
                 continue;
 
-            // If reference finite but computed infinite -> large penalty cost
+            // reference finite but computed infinite -> large penalty cost
             if ((isComplexInf(c)) && (isComplexFinite(r)))
             {
-                // express as large constant cost (but allow selection if no better)
                 if (INF_MISMATCH_PENALTY < best_cost)
                 {
                     best_cost = INF_MISMATCH_PENALTY;
@@ -125,7 +123,6 @@ double eigErrorNorm(
                 continue;
             }
 
-            // If reference infinite but computed finite -> large penalty
             if (isComplexInf(r) && isComplexFinite(c))
             {
                 if (INF_MISMATCH_PENALTY < best_cost)
@@ -186,7 +183,7 @@ double eigErrorNorm(
         }
 
         // Both finite:
-        double penalty = std::abs((best_c - r) / r);
+        double penalty = std::abs(best_c - r);
         error_sum += penalty * penalty;
         matched_count++;
     }
@@ -194,10 +191,131 @@ double eigErrorNorm(
     if (matched_count == 0)
         return std::numeric_limits<double>::quiet_NaN();
 
-    return std::sqrt(error_sum);
+    return std::sqrt(error_sum / N);
 }
 
-double invEigenErrorNorm(const std::vector<std::complex<double>> &reference,
+double MREL(
+    const std::vector<std::complex<double>> &reference,
+    const Eigen::VectorXd &alphar,
+    const Eigen::VectorXd &alphai,
+    const Eigen::VectorXd &beta)
+{
+    const int N = static_cast<int>(reference.size());
+    double ans = -1 * std::numeric_limits<double>::infinity();
+    if (alphar.size() != N || alphai.size() != N || beta.size() != N)
+        throw std::invalid_argument("Eigenvalue dimension mismatch in eigen_error_norm.");
+
+    std::vector<std::complex<double>> computed(N);
+    for (int i = 0; i < N; ++i)
+    {
+        if (beta(i) <= 1e-16)
+        {
+            computed[i] = std::complex<double>(std::numeric_limits<double>::infinity(), 0.0);
+        }
+        else
+        {
+            computed[i] = std::complex<double>(alphar(i), alphai(i)) / beta(i);
+        }
+    }
+
+    std::vector<int> ref_idx;
+    ref_idx.reserve(N);
+    for (int i = 0; i < N; ++i)
+    {
+        const auto &r = reference[i];
+        if (std::isnan(r.real()) || std::isnan(r.imag()))
+        {
+            continue;
+        }
+        ref_idx.push_back(i);
+    }
+    if (ref_idx.empty()) // only fake eigenvalues
+    {
+        return std::numeric_limits<double>::quiet_NaN(); // nothing to compare
+    }
+
+    auto mag_ang = [&](const std::complex<double> &z)
+    {
+        double m = std::abs(z);
+        double a = std::arg(z);
+        return std::make_pair(m, a);
+    };
+
+    std::sort(ref_idx.begin(), ref_idx.end(), [&](int i, int j)
+              { return mag_ang(reference[i]) < mag_ang(reference[j]); });
+
+    std::vector<char> used(N, 0);
+    int matched_count = 0;
+
+    for (int ridx : ref_idx) // loop over valid references
+    {
+        const std::complex<double> &r = reference[ridx];
+
+        // special-case: reference infinite -> try to match an infinite computed first
+        if (std::isinf(r.real()) || std::isinf(r.imag()))
+        {
+            int found_inf = -1;
+            for (int j = 0; j < N; ++j) // loop over computed values
+            {
+                if (used[j])
+                    continue;
+                const auto &c = computed[j];
+                if (std::isinf(c.real()) || std::isinf(c.imag()))
+                {
+                    found_inf = j;
+                    break;
+                }
+            }
+            if (found_inf != -1)
+            {
+                used[found_inf] = 1;
+                matched_count++;
+                continue;
+            }
+        }
+
+        int best_j = -1;
+        double best_cost = std::numeric_limits<double>::infinity();
+
+        for (int j = 0; j < N; ++j)
+        {
+            if (used[j])
+                continue;
+            const auto &c = computed[j];
+
+            if (std::isnan(c.real()) || std::isnan(c.imag())) // safety check, nan normally already filtered
+                continue;
+
+            double dist = std::abs(c - r);
+            double cost = dist;
+            if (cost < best_cost)
+            {
+                best_cost = cost;
+                best_j = j;
+            }
+        }
+        if (best_j == -1)
+        {
+            throw std::runtime_error("Couldn't find a match");
+        }
+
+        used[best_j] = 1;
+        const auto &best_c = computed[best_j];
+
+        double rel_error = std::abs((best_c - r) / r);
+        if (rel_error > ans) {
+            ans = rel_error;
+            matched_count++;
+        }
+    }
+
+    if (matched_count == 0)
+        return std::numeric_limits<double>::quiet_NaN();
+
+    return ans;
+}
+
+double invRMSD(const std::vector<std::complex<double>> &reference,
                          const Eigen::VectorXd &alphar,
                          const Eigen::VectorXd &alphai,
                          const Eigen::VectorXd &beta)
@@ -211,5 +329,5 @@ double invEigenErrorNorm(const std::vector<std::complex<double>> &reference,
     }
 
     // for now, all eigenvalues are real -> switch beta and alpha_r
-    return eigErrorNorm(inv_ref, beta, alphai, alphar);
+    return RMSD(inv_ref, beta, alphai, alphar);
 }

@@ -26,16 +26,13 @@ Pencil generateRegularPencil(int N)
     MatrixXd Qx = qrX.householderQ() * MatrixXd::Identity(N, N);
     MatrixXd Qy = qrY.householderQ() * MatrixXd::Identity(N, N);
 
-    // Diagonal matrix D = diag(1, 2, ..., N)
     MatrixXd D = MatrixXd::Zero(N, N);
     for (int i = 0; i < N; ++i)
         D(i, i) = static_cast<double>(i + 1);
 
-    // Build matrices A and B
     MatrixXd A = Qx * D * Qy;
     MatrixXd B = Qx * Qy;
 
-    // Exact eigenvalues
     std::vector<std::complex<double>> eigvals;
     eigvals.reserve(N);
     for (int i = 0; i < N; ++i)
@@ -55,7 +52,6 @@ Pencil generateSingularTriangularPencil(int N)
     MatrixXd A = MatrixXd::Zero(N, N);
     MatrixXd B = MatrixXd::Zero(N, N);
 
-    // Generate random upper-triangular matrices
     for (int i = 0; i < N; ++i)
     {
         for (int j = i; j < N; ++j)
@@ -65,7 +61,6 @@ Pencil generateSingularTriangularPencil(int N)
         }
     }
 
-    // Zero out some diagonal entries in both A and B
     int num_zeros = std::max(1, N / 10);
     std::uniform_int_distribution<> diag_dist(0, N - 1);
 
@@ -84,12 +79,12 @@ Pencil generateSingularTriangularPencil(int N)
     {
         if (A(i, i) == 0.0 && B(i, i) == 0.0)
         {
-            // undefined (fake singular)
+            // undefined eigenvalue
             eigvals.emplace_back(std::numeric_limits<double>::quiet_NaN(), 0.0);
         }
         else if (B(i, i) == 0.0)
         {
-            // infinite eigenvalue (well-defined)
+            // infinite eigenvalue
             eigvals.emplace_back(std::numeric_limits<double>::infinity(), 0.0);
         }
         else
@@ -119,14 +114,12 @@ Pencil generateRandomSingularPencil(int N)
         diagB(i) = dist_val(rng);
     }
 
-    // Force some singularities
     int k = std::max(1, N / 10);
 
     for (int i = 0; i < k; i++)
     {
         int idx = diag_pick(rng);
 
-        // produce fake singular (undefined eigenvalue)
         diagA(idx) = 0.0;
         diagB(idx) = 0.0;
     }
@@ -146,7 +139,6 @@ Pencil generateRandomSingularPencil(int N)
     Eigen::MatrixXd A = U * DA * V.transpose();
     Eigen::MatrixXd B = U * DB * V.transpose();
 
-    // Compute reference eigenvalues
     std::vector<std::complex<double>> eigvals;
     eigvals.reserve(N);
 
@@ -172,7 +164,7 @@ Pencil generateRandomSingularPencil(int N)
     return {A, B, eigvals};
 }
 
-Pencil generateLogspaceSingularPencil(int N)
+Pencil generateALogspaceSingularPencil(int N)
 {
     if (N <= 0)
         throw std::invalid_argument("N must be positive");
@@ -180,18 +172,16 @@ Pencil generateLogspaceSingularPencil(int N)
     std::mt19937_64 rng(std::random_device{}());
     std::normal_distribution<double> nd(0.0, 1.0);
 
-    VectorXd diagB(N);
+    VectorXd diagA(N);
     for (int i = 0; i < N; ++i)
     {
         double exp = -16 * i / (N - 1); // e.g. 0, ..., -16
-        diagB(i) = std::pow(10.0, exp);
+        diagA(i) = std::pow(10.0, exp);
     }
 
-    // Build diagonal DA
-    VectorXd diagA(N);
-    // Optionally you could use random positive values
+    VectorXd diagB(N);
     for (int i = 0; i < N; ++i)
-        diagA(i) = std::abs(nd(rng)) + 0.5;
+        diagB(i) = std::abs(nd(rng));
 
     MatrixXd DA = diagA.asDiagonal();
     MatrixXd DB = diagB.asDiagonal();
@@ -234,3 +224,65 @@ Pencil generateLogspaceSingularPencil(int N)
 
     return {A, B, eigs};
 }
+
+Pencil generateBLogspaceSingularPencil(int N)
+{
+    if (N <= 0)
+        throw std::invalid_argument("N must be positive");
+
+    std::mt19937_64 rng(std::random_device{}());
+    std::normal_distribution<double> nd(0.0, 1.0);
+
+    VectorXd diagB(N);
+    for (int i = 0; i < N; ++i)
+    {
+        double exp = -16 * i / (N - 1); // e.g. 0, ..., -16
+        diagB(i) = std::pow(10.0, exp);
+    }
+
+    VectorXd diagA(N);
+    for (int i = 0; i < N; ++i)
+        diagA(i) = std::abs(nd(rng));
+
+    MatrixXd DA = diagA.asDiagonal();
+    MatrixXd DB = diagB.asDiagonal();
+
+    MatrixXd R1(N, N), R2(N, N);
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N; ++j)
+        {
+            R1(i, j) = nd(rng);
+            R2(i, j) = nd(rng);
+        }
+
+    HouseholderQR<MatrixXd> qr1(R1);
+    HouseholderQR<MatrixXd> qr2(R2);
+    MatrixXd U = qr1.householderQ() * MatrixXd::Identity(N, N);
+    MatrixXd V = qr2.householderQ() * MatrixXd::Identity(N, N);
+
+    MatrixXd A = U * DA * V.transpose();
+    MatrixXd B = U * DB * V.transpose();
+
+    std::vector<std::complex<double>> eigs;
+    eigs.reserve(N);
+    for (int i = 0; i < N; ++i)
+    {
+        double a = diagA(i);
+        double b = diagB(i);
+        // b should be > 0 here (powers of 10), but guard anyway:
+        if (b == 0.0)
+        {
+            if (a == 0.0)
+                eigs.emplace_back(std::numeric_limits<double>::quiet_NaN(), 0.0);
+            else
+                eigs.emplace_back(std::numeric_limits<double>::infinity(), 0.0);
+        }
+        else
+        {
+            eigs.emplace_back(a / b, 0.0);
+        }
+    }
+
+    return {A, B, eigs};
+}
+

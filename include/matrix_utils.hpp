@@ -7,12 +7,17 @@ bool isComplexInfinite(const std::complex<double> &z);
 
 bool isComplexFinite(const std::complex<double> &z);
 
-double eigErrorNorm(const std::vector<std::complex<double>> &exact,
+double RMSD(const std::vector<std::complex<double>> &exact,
                     const Eigen::VectorXd &alphar,
                     const Eigen::VectorXd &alphai,
                     const Eigen::VectorXd &beta);
 
-double invEigenErrorNorm(const std::vector<std::complex<double>> &reference,
+double MREL(const std::vector<std::complex<double>> &exact,
+                    const Eigen::VectorXd &alphar,
+                    const Eigen::VectorXd &alphai,
+                    const Eigen::VectorXd &beta);
+
+double invRMSD(const std::vector<std::complex<double>> &reference,
                          const Eigen::VectorXd &alphar,
                          const Eigen::VectorXd &alphai,
                          const Eigen::VectorXd &beta);
